@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>载送排班系统</title>
+<style>
+  :root{
+    --bg:#EEF2EF;
+    --surface:#FFFFFF;
+    --border:#DCE3DF;
+    --ink:#16241F;
+    --ink-muted:#5B6B63;
+    --teal:#0F6B62;
+    --teal-dark:#0B4F49;
+    --teal-pale:#E3F0EE;
+    --amber:#D98E2B;
+    --amber-pale:#FBF0DE;
+    --alert:#C0392B;
+    --alert-pale:#FBEAE8;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:720px;margin:0 auto;padding:0 0 60px;}
+
+  /* header / route motif */
+  .hero{
+    background:linear-gradient(135deg,var(--teal-dark),var(--teal));
+    color:#fff;
+    padding:22px 18px 26px;
+    border-radius:0 0 22px 22px;
+  }
+  .hero h1{margin:0 0 4px;font-size:20px;font-weight:700;letter-spacing:.2px;}
+  .hero p{margin:0;font-size:13px;opacity:.85;}
+  .route-line{display:flex;align-items:center;gap:6px;margin-top:14px;opacity:.9;}
+  .route-line .dot{width:8px;height:8px;border-radius:50%;background:#fff;flex:none;}
+  .route-line .seg{flex:1;height:1px;background:repeating-linear-gradient(90deg,#fff 0 6px,transparent 6px 11px);}
+  .route-line .lbl{font-size:11px;white-space:nowrap;}
+
+  /* tabs */
+  .tabs{
+    display:flex;gap:6px;padding:14px 14px 0;
+    overflow-x:auto;
+  }
+  .tab-btn{
+    flex:none;
+    padding:9px 14px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--ink-muted);
+    font-size:13px;font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .tab-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+
+  .content{padding:16px 14px 0;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px;
+    margin-bottom:14px;
+  }
+  .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
+  .card h2 .badge{
+    width:22px;height:22px;border-radius:50%;background:var(--teal-pale);color:var(--teal-dark);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none;
+  }
+
+  label{display:block;font-size:12.5px;color:var(--ink-muted);margin:12px 0 5px;font-weight:600;}
+  label:first-of-type{margin-top:0;}
+  input[type=text],input[type=tel],input[type=time],input[type=number],select,textarea{
+    width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;
+    font-size:14.5px;background:#fbfcfb;color:var(--ink);font-family:inherit;
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;background:#fff;}
+  textarea{resize:vertical;min-height:56px;}
+  .hint{font-size:12px;color:var(--ink-muted);margin-top:4px;}
+  .zone-point{font-size:12px;color:var(--teal-dark);margin-top:4px;background:var(--teal-pale);padding:6px 9px;border-radius:8px;display:none;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .check-row{display:flex;align-items:center;gap:8px;margin-top:14px;}
+  .check-row input{width:auto;}
+  .check-row span{font-size:13.5px;font-weight:600;}
+  .zone-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;}
+  .zone-chip{
+    border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;
+    display:flex;align-items:center;gap:7px;cursor:pointer;background:#fbfcfb;
+  }
+  .zone-chip input{width:auto;}
+
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    background:var(--teal);color:#fff;border:none;border-radius:10px;
+    padding:12px 16px;font-size:14.5px;font-weight:700;cursor:pointer;width:100%;margin-top:16px;
+  }
+  .btn:active{background:var(--teal-dark);}
+  .btn-ghost{background:transparent;color:var(--alert);border:1px solid var(--alert-pale);width:auto;padding:6px 10px;font-size:12px;margin-top:0;}
+  .btn-secondary{background:var(--surface);color:var(--teal-dark);border:1px solid var(--teal);}
+
+  .banner{border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px;}
+  .banner-ok{background:var(--teal-pale);color:var(--teal-dark);}
+  .banner-warn{background:var(--amber-pale);color:#8A5A16;}
+  .banner-alert{background:var(--alert-pale);color:var(--alert);}
+
+  /* schedule */
+  .event-select{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
+  .event-select select{flex:1;}
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px;}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;}
+  .stat b{display:block;font-size:18px;color:var(--teal-dark);}
+  .stat span{font-size:10.5px;color:var(--ink-muted);}
+
+  .section-title{font-size:14px;font-weight:700;margin:20px 0 10px;display:flex;align-items:center;gap:8px;}
+  .section-title .line{flex:1;height:1px;background:var(--border);}
+
+  .trip-card{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--surface);}
+  .trip-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .trip-time{font-size:20px;font-weight:800;color:var(--teal-dark);line-height:1;}
+  .trip-zone{font-size:13px;font-weight:700;margin-top:2px;}
+  .trip-point{font-size:11.5px;color:var(--ink-muted);}
+  .trip-badge{background:var(--amber-pale);color:#8A5A16;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap;}
+  .trip-driver{font-size:12.5px;color:var(--ink-muted);margin-top:8px;display:flex;justify-content:space-between;align-items:center;}
+  .pax-list{margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
+  .pax-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;}
+  .pax-row a{color:var(--teal-dark);text-decoration:none;font-size:11.5px;font-weight:700;}
+  .delayed{color:var(--amber);font-weight:700;}
+
+  .unassigned-card{border:1px solid #f0c9c2;background:var(--alert-pale);border-radius:12px;padding:12px 14px;margin-bottom:8px;}
+  .unassigned-card b{font-size:13.5px;}
+  .unassigned-card .meta{font-size:12px;color:#8a3226;margin-top:2px;}
+
+  .list-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .list-row:last-child{border-bottom:none;}
+  .list-row .meta{font-size:11.5px;color:var(--ink-muted);margin-top:2px;}
+
+  .empty{text-align:center;color:var(--ink-muted);font-size:13px;padding:24px 10px;}
+  .updated-at{text-align:center;font-size:11px;color:var(--ink-muted);margin-top:8px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+/* ================= FIREBASE CONFIG =================
+   把下面这几个值换成你自己 Firebase 专案的设定（在 Firebase 控制台 
+   专案设定 > 一般 > 你的应用程式 那边可以复制到）*/
+const firebaseConfig = {
+  apiKey: "AIzaSyBdbw2lCoffllWH8GchUblqkMXE-gLGplk",
+  authDomain: "church-transportation-form.firebaseapp.com",
+  projectId: "church-transportation-form",
+  storageBucket: "church-transportation-form.firebasestorage.app",
+  messagingSenderId: "691847445926",
+  appId: "1:691847445926:web:8d44b2961d7ab82e2f2367"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getFirestore(fbApp);
+
+/* ================= CONFIG ================= */
+const ZONES = [
+  {id:'z1', label:'Dahlia／Sakura／Allamanda', point:'集合点：Dahlia Busstop', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Dahlia Busstop')},
+  {id:'z2', label:'Cempaka／BRC／TAZ', point:'集合点：Cempaka Office 前', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Cempaka Office')},
+  {id:'z3', label:'Rafflesia', point:'集合点：另行安排（请见备注或询问同工）', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Rafflesia College')},
+  {id:'z4', label:'UJ', point:'集合点：Roundabout（靠近 Cempaka）', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS roundabout near Cempaka')},
+  {id:'z5', label:'DM', point:'集合点：DM 楼下', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS DM College')},
+  {id:'z6', label:'其他／特殊安排', point:'请在备注注明详细地点', mapLink:''},
+];
+const TURNAROUND_MIN = 30;
+const BATCH_WINDOW_MIN = 15;
+const ESCALATION_EXTRA_TRIPS = 2;
+
+/* ================= STATE ================= */
+let STATE = {
+  tab: 'passenger',
+  passengers: [],
+  drivers: [],
+  currentEvent: '',
+  eventSettings: {},
+  loaded: false,
+  lastFetch: null,
+  scheduleEvent: null,
+  adminEvent: null,
+};
+
+/* ================= FIRESTORE HELPERS ================= */
+function safeId(str){
+  return encodeURIComponent(String(str)).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0,180);
+}
+
+function attachListeners(){
+  onSnapshot(collection(db,'passengers'), (snap)=>{
+    STATE.passengers = snap.docs.map(d=>({...d.data(), id:d.id}));
+    STATE.loaded = true;
+    STATE.lastFetch = new Date();
+    if(STATE.tab==='schedule' || STATE.tab==='admin') renderTab();
+  }, (err)=>{ console.error('passengers listener error', err); });
+
+  onSnapshot(collection(db,'drivers'), (snap)=>{
+    STATE.drivers = snap.docs.map(d=>({...d.data(), id:d.id}));
+    STATE.loaded = true;
+    STATE.lastFetch = new Date();
+    if(STATE.tab==='schedule' || STATE.tab==='admin') renderTab();
+  }, (err)=>{ console.error('drivers listener error', err); });
+
+  onSnapshot(doc(db,'settings','app'), (snap)=>{
+    const data = snap.exists() ? snap.data() : {};
+    STATE.currentEvent = data.currentEvent || '';
+    STATE.eventSettings = data.eventSettings || {};
+    STATE.loaded = true;
+    STATE.lastFetch = new Date();
+    renderTab();
+  }, (err)=>{ console.error('settings listener error', err); });
+}
+function getEventSettings(eventName){
+  return STATE.eventSettings[eventName] || {};
+}
+
+/* ================= UTIL ================= */
+function uid(prefix){ return prefix+'_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function timeToMin(t){ if(!t) return null; const [h,m]=t.split(':').map(Number); return h*60+m; }
+function minToTime(m){ if(m==null) return ''; m=((m%1440)+1440)%1440; const h=Math.floor(m/60), mm=m%60; return String(h).padStart(2,'0')+':'+String(mm).padStart(2,'0'); }
+function zoneById(id){ return ZONES.find(z=>z.id===id); }
+function esc(s){ return (s||'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function telHref(phone){ return 'tel:'+(phone||'').replace(/[^0-9+]/g,''); }
+function waHref(phone){
+  let d=(phone||'').replace(/[^0-9]/g,'');
+  if(d.startsWith('0')) d='60'+d.slice(1);
+  else if(!d.startsWith('60')) d='60'+d;
+  return 'https://wa.me/'+d;
+}
+function eventList(){
+  const set = new Set();
+  STATE.passengers.forEach(p=>set.add(p.event||'(未命名)'));
+  STATE.drivers.forEach(d=>set.add(d.event||'(未命名)'));
+  if(STATE.currentEvent) set.add(STATE.currentEvent);
+  const arr = Array.from(set);
+  arr.sort();
+  return arr;
+}
+function shouldEscalate(escalationTimeStr){
+  if(!escalationTimeStr) return false;
+  const thresh = timeToMin(escalationTimeStr);
+  if(thresh==null) return false;
+  const now = new Date();
+  const nowMin = now.getHours()*60+now.getMinutes();
+  return nowMin >= thresh;
+}
+
+/* ================= MATCHING ALGORITHM ================= */
+function clusterByTime(list, windowMin){
+  const batches=[]; let current=null;
+  list.forEach(p=>{
+    if(current===null || p._t-current.startTime>windowMin){ current={startTime:p._t, items:[p]}; batches.push(current); }
+    else current.items.push(p);
+  });
+  return batches;
+}
+
+function assignBatchList(batches, availableDrivers, driverState, relaxed, assignments, unassignedOut){
+  batches.forEach(batch=>{
+    const zoneId = batch.zoneId;
+    let remaining = [...batch.items];
+    const batchTime = batch.startTime;
+
+    while(remaining.length>0){
+      let candidates = availableDrivers.filter(d=>{
+        const st = driverState[d.id];
+        const zoneOk = relaxed ? true : (d.zones.includes('any') || d.zones.includes(zoneId));
+        const capExtra = relaxed ? ESCALATION_EXTRA_TRIPS : 0;
+        const tripsOk = st.tripsUsed < (d.maxTrips + capExtra);
+        return zoneOk && tripsOk;
+      });
+      if(candidates.length===0){
+        remaining.forEach(p=>unassignedOut.push({...p, zone:zoneId, requestedTime:minToTime(batchTime)}));
+        remaining=[];
+        break;
+      }
+      candidates.forEach(d=>{
+        const st=driverState[d.id];
+        d._effTime = st.nextFreeTime===null ? batchTime : Math.max(batchTime, st.nextFreeTime);
+      });
+      candidates.sort((a,b)=>{
+        if(a._effTime!==b._effTime) return a._effTime-b._effTime;
+        const capDiff = b.capacity-a.capacity;
+        if(capDiff!==0) return capDiff;
+        return driverState[a.id].tripsUsed - driverState[b.id].tripsUsed;
+      });
+      const driver = candidates[0];
+      const st = driverState[driver.id];
+      const effectiveTime = driver._effTime;
+      const take = remaining.splice(0, driver.capacity);
+
+      assignments.push({
+        driverId:driver.id, driverName:driver.name, driverPhone:driver.phone, driverType:driver.type,
+        driverCapacity:driver.capacity,
+        zoneId, direction: undefined, tripIndex: st.tripsUsed+1,
+        time: minToTime(effectiveTime), requestedTime: minToTime(batchTime),
+        delayedMin: effectiveTime-batchTime,
+        escalated: relaxed,
+        passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes}))
+      });
+      st.tripsUsed += 1;
+      st.nextFreeTime = effectiveTime + TURNAROUND_MIN;
+    }
+  });
+}
+
+function buildBatchesByZone(list){
+  const byZone = {};
+  list.forEach(p=>{ (byZone[p.zone] = byZone[p.zone]||[]).push(p); });
+  let allBatches = [];
+  ZONES.forEach(zone=>{
+    const zl = byZone[zone.id] || [];
+    if(zl.length===0) return;
+    clusterByTime(zl, BATCH_WINDOW_MIN).forEach(b=>allBatches.push({zoneId:zone.id, startTime:b.startTime, items:b.items}));
+  });
+  allBatches.sort((a,b)=>a.startTime-b.startTime);
+  return allBatches;
+}
+
+function matchDirection(passengersAll, driversAll, direction, escalate){
+  const needField = direction==='going' ? 'goingNeeded' : 'returnNeeded';
+  const timeField = direction==='going' ? 'goingTime' : 'returnTime';
+  const availField = direction==='going' ? 'goingAvailable' : 'returnAvailable';
+
+  const passengers = passengersAll
+    .filter(p=>p[needField] && p[timeField])
+    .map(p=>({...p, _t:timeToMin(p[timeField])}))
+    .sort((a,b)=>a._t-b._t);
+
+  const driverState = {};
+  driversAll.forEach(d=>{ driverState[d.id]={tripsUsed:0, nextFreeTime:null}; });
+  const availableDrivers = driversAll.filter(d=>d[availField]);
+
+  const assignments = [];
+  let unassigned = [];
+
+  const allBatches = buildBatchesByZone(passengers);
+  assignBatchList(allBatches, availableDrivers, driverState, false, assignments, unassigned);
+
+  if(escalate && unassigned.length>0){
+    const escList = unassigned.map(p=>({...p, _t:timeToMin(p.requestedTime)}));
+    const escBatches = buildBatchesByZone(escList);
+    const stillUnassigned = [];
+    assignBatchList(escBatches, availableDrivers, driverState, true, assignments, stillUnassigned);
+    unassigned = stillUnassigned;
+  }
+
+  assignments.forEach(a=>{ a.direction = direction; });
+  return {assignments, unassigned};
+}
+
+function computeSchedule(passengers, drivers, escalationTime){
+  const escalate = shouldEscalate(escalationTime);
+  return {
+    going: matchDirection(passengers, drivers, 'going', escalate),
+    ret: matchDirection(passengers, drivers, 'return', escalate),
+    escalateActive: escalate,
+  };
+}
+
+/* ================= RENDER ================= */
+function render(){
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="hero">
+      <h1>🚐 载送排班系统</h1>
+      <p>${STATE.currentEvent ? '本次活动：'+esc(STATE.currentEvent) : '登记去程／回程，系统自动配对司机'}</p>
+      <div class="route-line">
+        <div class="dot"></div><div class="seg"></div>
+        <div class="lbl">宿舍集合点</div><div class="seg"></div>
+        <div class="dot"></div><div class="seg"></div>
+        <div class="lbl">教会</div>
+      </div>
+    </div>
+    <div class="tabs">
+      ${tabBtn('passenger','我要报到')}
+      ${tabBtn('driver','我要当司机')}
+      ${tabBtn('schedule','总表')}
+      ${tabBtn('admin','管理')}
+    </div>
+    <div class="content" id="content"></div>
+  `;
+  renderTab();
+}
+function tabBtn(key,label){
+  return `<button class="tab-btn ${STATE.tab===key?'active':''}" onclick="switchTab('${key}')">${label}</button>`;
+}
+function switchTab(key){
+  STATE.tab = key;
+  render();
+}
+function renderTab(){
+  const c = document.getElementById('content');
+  if(!STATE.loaded){ c.innerHTML = '<div class="empty">加载中…</div>'; return; }
+  if(STATE.tab==='passenger') c.innerHTML = renderPassengerForm();
+  if(STATE.tab==='driver') c.innerHTML = renderDriverForm();
+  if(STATE.tab==='schedule') c.innerHTML = renderSchedule();
+  if(STATE.tab==='admin') c.innerHTML = renderAdmin();
+  if(STATE.tab==='schedule') wireScheduleEvents();
+  if(STATE.tab==='admin') wireAdminEvents();
+}
+
+/* ---- Passenger form ---- */
+function renderPassengerForm(){
+  if(!STATE.currentEvent){
+    return `<div class="card"><div class="empty">同工还没设定本次活动，请稍后再试，或联系同工。</div></div>`;
+  }
+  const zoneOpts = ZONES.map(z=>`<option value="${z.id}">${esc(z.label)}</option>`).join('');
+  return `
+  <div class="card">
+    <h2><span class="badge">1</span> 乘客登记</h2>
+    <form id="pForm" onsubmit="return submitPassenger(event)">
+      <label>活动／日期</label>
+      <div class="banner banner-ok" style="margin-top:0;">${esc(STATE.currentEvent)}</div>
+
+      <label>姓名</label>
+      <input type="text" id="p_name" required placeholder="你的名字">
+
+      <label>电话（WhatsApp）</label>
+      <input type="tel" id="p_phone" required placeholder="012-3456789">
+      <div class="hint">帮朋友登记时，请用朋友本人的号码，不要用自己的号码重复填，不然资料会互相盖掉</div>
+
+      <label>宿舍集合区</label>
+      <select id="p_zone" onchange="showZonePoint('p_zone_point',this.value)" required>
+        <option value="">请选择</option>${zoneOpts}
+      </select>
+      <div class="zone-point" id="p_zone_point"></div>
+
+      <div class="check-row"><input type="checkbox" id="p_goingNeeded" checked onchange="toggleField('p_goingTimeWrap',this.checked)"><span>需要去程（宿舍 → 教会）</span></div>
+      <div id="p_goingTimeWrap">
+        <label>几时要到？</label>
+        <input type="time" id="p_goingTime" value="07:45">
+      </div>
+
+      <div class="check-row"><input type="checkbox" id="p_returnNeeded" checked onchange="toggleField('p_returnTimeWrap',this.checked)"><span>需要回程（教会 → 宿舍）</span></div>
+      <div id="p_returnTimeWrap">
+        <label>几时要走？</label>
+        <input type="time" id="p_returnTime" value="12:30">
+      </div>
+
+      <label>备注（选填）</label>
+      <textarea id="p_notes" placeholder="例如：东西比较多、需要准时之类"></textarea>
+
+      <button class="btn" type="submit">提交登记</button>
+      <div id="p_msg"></div>
+    </form>
+  </div>`;
+}
+function toggleField(id, show){ document.getElementById(id).style.display = show?'block':'none'; }
+function showZonePoint(id, zoneId){
+  const el = document.getElementById(id);
+  const z = zoneById(zoneId);
+  if(z){
+    el.style.display='block';
+    el.innerHTML = esc(z.point) + (z.mapLink ? ` · <a href="${z.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;">📍在地图打开</a>` : '');
+  } else { el.style.display='none'; }
+}
+async function submitPassenger(ev){
+  ev.preventDefault();
+  const event_ = STATE.currentEvent;
+  const name = document.getElementById('p_name').value.trim();
+  const phone = document.getElementById('p_phone').value.trim();
+  const zone = document.getElementById('p_zone').value;
+  const goingNeeded = document.getElementById('p_goingNeeded').checked;
+  const goingTime = document.getElementById('p_goingTime').value;
+  const returnNeeded = document.getElementById('p_returnNeeded').checked;
+  const returnTime = document.getElementById('p_returnTime').value;
+  const notes = document.getElementById('p_notes').value.trim();
+  const msg = document.getElementById('p_msg');
+
+  if(!zone){ msg.innerHTML = '<div class="banner banner-alert">请选择宿舍集合区</div>'; return false; }
+  if(!goingNeeded && !returnNeeded){ msg.innerHTML = '<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
+
+  const existed = STATE.passengers.some(p=>p.event===event_ && p.phone===phone);
+  const record = {
+    event: event_, name, phone, zone,
+    goingNeeded, goingTime: goingNeeded?goingTime:'',
+    returnNeeded, returnTime: returnNeeded?returnTime:'',
+    notes, updatedAt: Date.now()
+  };
+  const docId = safeId(event_)+'__'+safeId(phone);
+
+  msg.innerHTML = '<div class="banner banner-ok">保存中…</div>';
+  try{
+    await setDoc(doc(db,'passengers',docId), record);
+    msg.innerHTML = `<div class="banner banner-ok">${existed?'已更新你的登记 ✓':'登记成功 ✓'}（可以在「总表」查看排位）</div>`;
+  }catch(e){
+    console.error(e);
+    msg.innerHTML = '<div class="banner banner-alert">保存失败，请检查网络后重试</div>';
+  }
+  return false;
+}
+
+/* ---- Driver form ---- */
+function renderDriverForm(){
+  if(!STATE.currentEvent){
+    return `<div class="card"><div class="empty">同工还没设定本次活动，请稍后再试，或联系同工。</div></div>`;
+  }
+  const zoneChips = ZONES.map(z=>`
+    <label class="zone-chip"><input type="checkbox" class="d_zone_chk" value="${z.id}">${esc(z.label)}</label>
+  `).join('');
+  return `
+  <div class="card">
+    <h2><span class="badge">2</span> 司机登记</h2>
+    <form id="dForm" onsubmit="return submitDriver(event)">
+      <label>活动／日期</label>
+      <div class="banner banner-ok" style="margin-top:0;">${esc(STATE.currentEvent)}</div>
+
+      <label>姓名</label>
+      <input type="text" id="d_name" required placeholder="你的名字">
+
+      <label>电话（WhatsApp）</label>
+      <input type="tel" id="d_phone" required placeholder="012-3456789">
+
+      <label>身份</label>
+      <select id="d_type">
+        <option value="van">教会福音车</option>
+        <option value="private">私家车（临时帮忙）</option>
+      </select>
+
+      <div class="row2">
+        <div>
+          <label>可以载几位（不含司机）</label>
+          <input type="number" id="d_capacity" min="1" value="4" required>
+        </div>
+        <div>
+          <label>这个方向最多愿跑几趟</label>
+          <input type="number" id="d_maxTrips" min="1" value="1" required>
+        </div>
+      </div>
+      <div class="hint">例如福音车愿意跑2趟，去程算2趟、回程也算2趟。如果人手真的不够，同工设定的自动加派机制可能会临时多请你跑一趟，请留意总表</div>
+
+      <label>可以配合的时段</label>
+      <div class="check-row"><input type="checkbox" id="d_goingAvailable" checked><span>去程（宿舍 → 教会）</span></div>
+      <div class="check-row"><input type="checkbox" id="d_returnAvailable" checked><span>回程（教会 → 宿舍）</span></div>
+
+      <label>负责／熟悉的区域</label>
+      <div class="check-row"><input type="checkbox" id="d_zoneAny" checked onchange="toggleZoneChips(this.checked)"><span>不限区域，都可以</span></div>
+      <div class="zone-grid" id="d_zoneGrid" style="display:none;">${zoneChips}</div>
+
+      <button class="btn" type="submit">提交登记</button>
+      <div id="d_msg"></div>
+    </form>
+  </div>`;
+}
+function toggleZoneChips(anyChecked){
+  document.getElementById('d_zoneGrid').style.display = anyChecked?'none':'grid';
+}
+async function submitDriver(ev){
+  ev.preventDefault();
+  const event_ = STATE.currentEvent;
+  const name = document.getElementById('d_name').value.trim();
+  const phone = document.getElementById('d_phone').value.trim();
+  const type = document.getElementById('d_type').value;
+  const capacity = parseInt(document.getElementById('d_capacity').value,10);
+  const maxTrips = parseInt(document.getElementById('d_maxTrips').value,10);
+  const goingAvailable = document.getElementById('d_goingAvailable').checked;
+  const returnAvailable = document.getElementById('d_returnAvailable').checked;
+  const zoneAny = document.getElementById('d_zoneAny').checked;
+  const msg = document.getElementById('d_msg');
+
+  if(!goingAvailable && !returnAvailable){ msg.innerHTML='<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
+  let zones = ['any'];
+  if(!zoneAny){
+    zones = Array.from(document.querySelectorAll('.d_zone_chk:checked')).map(el=>el.value);
+    if(zones.length===0){ msg.innerHTML='<div class="banner banner-alert">请至少选一个区域，或勾选「不限区域」</div>'; return false; }
+  }
+
+  const existed = STATE.drivers.some(d=>d.event===event_ && d.phone===phone);
+  const record = {
+    event: event_, name, phone, type, capacity, maxTrips,
+    goingAvailable, returnAvailable, zones, updatedAt: Date.now()
+  };
+  const docId = safeId(event_)+'__'+safeId(phone);
+
+  msg.innerHTML = '<div class="banner banner-ok">保存中…</div>';
+  try{
+    await setDoc(doc(db,'drivers',docId), record);
+    msg.innerHTML = `<div class="banner banner-ok">${existed?'已更新你的登记 ✓':'登记成功 ✓，谢谢帮忙！'}</div>`;
+  }catch(e){
+    console.error(e);
+    msg.innerHTML = '<div class="banner banner-alert">保存失败，请检查网络后重试</div>';
+  }
+  return false;
+}
+
+/* ---- Schedule ---- */
+function renderSchedule(){
+  const events = eventList();
+  const sel = STATE.scheduleEvent && events.includes(STATE.scheduleEvent) ? STATE.scheduleEvent : (STATE.currentEvent || events[events.length-1] || '');
+  STATE.scheduleEvent = sel;
+
+  if(events.length===0){
+    return `<div class="card"><div class="empty">还没有人登记。分享链接给会友和司机开始登记吧。</div></div>`;
+  }
+
+  const passengers = STATE.passengers.filter(p=>p.event===sel);
+  const drivers = STATE.drivers.filter(d=>d.event===sel);
+  const settings = getEventSettings(sel);
+  const sched = computeSchedule(passengers, drivers, settings.escalationTime);
+
+  const goingNeed = passengers.filter(p=>p.goingNeeded).length;
+  const returnNeed = passengers.filter(p=>p.returnNeeded).length;
+
+  let escLine = '';
+  if(settings.escalationTime){
+    escLine = sched.escalateActive
+      ? `<div class="banner banner-warn">⚡ 已过 ${esc(settings.escalationTime)}，自动加派已启动：车不够时会请司机多跑一趟（不分区域）</div>`
+      : `<div class="hint" style="text-align:center;">未到 ${esc(settings.escalationTime)}，暂不自动加派。若有人未安排上车，同工可手动处理</div>`;
+  }
+
+  return `
+  <div class="card">
+    <div class="event-select">
+      <select id="scheduleEventSel">${events.map(e=>`<option value="${esc(e)}" ${e===sel?'selected':''}>${esc(e)}</option>`).join('')}</select>
+      <button class="btn btn-secondary" style="width:auto;margin:0;" onclick="manualRefresh()">🔄</button>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><b>${passengers.length}</b><span>登记人数</span></div>
+      <div class="stat"><b>${drivers.length}</b><span>司机／车辆</span></div>
+      <div class="stat"><b>${goingNeed}</b><span>需要去程</span></div>
+      <div class="stat"><b>${returnNeed}</b><span>需要回程</span></div>
+    </div>
+    ${escLine}
+    <div class="updated-at">最后更新：${STATE.lastFetch ? STATE.lastFetch.toLocaleTimeString('zh-CN',{hour12:false}) : '-'}（每10秒自动刷新）</div>
+  </div>
+
+  ${renderDirectionBlock('去程 · 宿舍 → 教会', sched.going)}
+  ${renderDirectionBlock('回程 · 教会 → 宿舍', sched.ret)}
+  `;
+}
+function renderDirectionBlock(title, result){
+  const {assignments, unassigned} = result;
+  let html = `<div class="section-title">${title}<div class="line"></div></div>`;
+  if(assignments.length===0 && unassigned.length===0){
+    html += `<div class="card"><div class="empty">这个方向暂时没有登记</div></div>`;
+  }
+  assignments.sort((a,b)=> (a.time>b.time?1:-1));
+  assignments.forEach(a=>{
+    const zone = zoneById(a.zoneId);
+    const delayTag = a.delayedMin>0 ? `<span class="delayed">（比要求晚 ${a.delayedMin} 分钟）</span>` : '';
+    const badgeStyle = a.escalated ? 'background:var(--alert-pale);color:var(--alert);' : '';
+    const badgeText = a.escalated ? `⚡加派 · 第${a.tripIndex}趟 · ${a.passengers.length}/${a.driverCapacity}人` : `第${a.tripIndex}趟 · ${a.passengers.length}/${a.driverCapacity}人`;
+    const mapTag = zone && zone.mapLink ? ` · <a href="${zone.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;text-decoration:none;">📍地图</a>` : '';
+    html += `
+    <div class="trip-card">
+      <div class="trip-top">
+        <div>
+          <div class="trip-time">${a.time} ${delayTag}</div>
+          <div class="trip-zone">${esc(zone?zone.label:a.zoneId)}</div>
+          <div class="trip-point">${esc(zone?zone.point:'')}${mapTag}</div>
+        </div>
+        <div class="trip-badge" style="${badgeStyle}">${badgeText}</div>
+      </div>
+      <div class="trip-driver">
+        <span>🚗 ${esc(a.driverName)}（${a.driverType==='van'?'福音车':'私家车'}）</span>
+        <a href="${telHref(a.driverPhone)}">${esc(a.driverPhone)}</a>
+      </div>
+      <div class="pax-list">
+        ${a.passengers.map(p=>`
+          <div class="pax-row">
+            <span>${esc(p.name)}</span>
+            <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a>
+          </div>`).join('')}
+      </div>
+    </div>`;
+  });
+  if(unassigned.length>0){
+    html += `<div class="banner banner-alert" style="margin-bottom:8px;">⚠️ 以下 ${unassigned.length} 人暂时没有车，需要同工手动安排</div>`;
+    unassigned.forEach(p=>{
+      const zone = zoneById(p.zone);
+      const mapTag = zone && zone.mapLink ? ` · <a href="${zone.mapLink}" target="_blank">📍地图</a>` : '';
+      html += `
+      <div class="unassigned-card">
+        <b>${esc(p.name)}</b> · ${esc(p.requestedTime)}
+        <div class="meta">${esc(zone?zone.label:p.zone)}${mapTag} · <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a></div>
+      </div>`;
+    });
+  }
+  return html;
+}
+function wireScheduleEvents(){
+  const sel = document.getElementById('scheduleEventSel');
+  if(sel) sel.onchange = ()=>{ STATE.scheduleEvent = sel.value; renderTab(); };
+}
+function manualRefresh(){
+  renderTab();
+}
+
+/* ---- Admin ---- */
+function renderAdmin(){
+  const events = eventList();
+  const sel = STATE.adminEvent && events.includes(STATE.adminEvent) ? STATE.adminEvent : (STATE.currentEvent || events[0] || '');
+  STATE.adminEvent = sel;
+
+  const passengers = STATE.passengers.filter(p=>p.event===sel);
+  const drivers = STATE.drivers.filter(d=>d.event===sel);
+  const settings = getEventSettings(sel);
+
+  return `
+  <div class="card">
+    <h2><span class="badge">⚙</span> 设置本次活动</h2>
+    <label>本次活动名称／日期（乘客／司机登记表会自动带出这个名字，他们不能自己改，避免打错字对不上）</label>
+    <input type="text" id="admin_currentEvent" value="${esc(STATE.currentEvent)}" placeholder="例如：8月16日主日">
+    <button class="btn" onclick="adminSaveEvent()">保存</button>
+    <div id="admin_ev_msg"></div>
+  </div>
+
+  ${sel ? `
+  <div class="card">
+    <h2><span class="badge">⚡</span> 自动加派设置 — ${esc(sel)}</h2>
+    <label>加派门槛时间（可不设）</label>
+    <input type="time" id="admin_escalationTime" value="${esc(settings.escalationTime||'')}">
+    <div class="hint">过了这个时间，如果还有人没车，系统会自动请已登记的司机多跑一趟（不受他们原本选的区域限制），最多再加 ${ESCALATION_EXTRA_TRIPS} 趟。不设置的话，系统不会自动加派，未安排的人会一直显示在「需要同工手动安排」，要靠同工自己联系多找车。</div>
+    <button class="btn btn-secondary" onclick="adminSaveEscalation()">保存加派设置</button>
+    <div id="admin_esc_msg"></div>
+  </div>` : ''}
+
+  <div class="card">
+    <h2><span class="badge">📋</span> 查看／管理登记资料</h2>
+    ${events.length>0 ? `<select id="adminEventSel" style="margin-bottom:10px;">${events.map(e=>`<option value="${esc(e)}" ${e===sel?'selected':''}>${esc(e)}</option>`).join('')}</select>` : ''}
+
+    <div class="section-title" style="margin-top:8px;">乘客（${passengers.length}）<div class="line"></div></div>
+    ${passengers.length===0 ? '<div class="empty">没有资料</div>' : passengers.map(p=>`
+      <div class="list-row">
+        <div>
+          <div>${esc(p.name)} · ${esc(zoneById(p.zone)?.label||p.zone)}</div>
+          <div class="meta">${p.goingNeeded?'去 '+esc(p.goingTime):''} ${p.returnNeeded?'　回 '+esc(p.returnTime):''}</div>
+        </div>
+        <button class="btn btn-ghost" onclick="deleteRecord('passenger','${p.id}')">删除</button>
+      </div>`).join('')}
+
+    <div class="section-title">司机（${drivers.length}）<div class="line"></div></div>
+    ${drivers.length===0 ? '<div class="empty">没有资料</div>' : drivers.map(d=>`
+      <div class="list-row">
+        <div>
+          <div>${esc(d.name)} · ${d.type==='van'?'福音车':'私家车'} · ${d.capacity}位 x${d.maxTrips}趟</div>
+          <div class="meta">${d.zones.includes('any')?'不限区域':d.zones.map(z=>zoneById(z)?.label||z).join('、')}</div>
+        </div>
+        <button class="btn btn-ghost" onclick="deleteRecord('driver','${d.id}')">删除</button>
+      </div>`).join('')}
+
+    ${events.length>0 ? `<button class="btn" style="background:var(--alert);margin-top:20px;" onclick="clearEventData()">清除「${esc(sel)}」的所有资料</button>` : ''}
+  </div>
+
+  ${sel ? `
+  <div class="card">
+    <h2><span class="badge">💾</span> 备份资料</h2>
+    <div class="hint">建议每次聚会结束后备份一次。这只是让你把目前的资料复制成文字，自己存起来（例如贴到备忘录、发给自己）,不会存到别的地方。</div>
+    <button class="btn btn-secondary" onclick="exportBackup()">生成备份文字</button>
+    <textarea id="backup_box" readonly style="display:none;margin-top:10px;min-height:140px;font-family:monospace;font-size:11px;"></textarea>
+    <button class="btn" id="copyBackupBtn" style="display:none;" onclick="copyBackup()">复制到剪贴板</button>
+  </div>` : ''}`;
+}
+function wireAdminEvents(){
+  const sel = document.getElementById('adminEventSel');
+  if(sel) sel.onchange = ()=>{ STATE.adminEvent = sel.value; renderTab(); };
+}
+async function adminSaveEvent(){
+  const val = document.getElementById('admin_currentEvent').value.trim();
+  try{
+    await setDoc(doc(db,'settings','app'), {currentEvent: val, eventSettings: STATE.eventSettings||{}}, {merge:true});
+    document.getElementById('admin_ev_msg').innerHTML = '<div class="banner banner-ok">已保存 ✓</div>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('admin_ev_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
+  }
+}
+async function adminSaveEscalation(){
+  const val = document.getElementById('admin_escalationTime').value;
+  const ev = STATE.adminEvent;
+  const newSettings = {...STATE.eventSettings, [ev]: {...(STATE.eventSettings[ev]||{}), escalationTime: val}};
+  try{
+    await setDoc(doc(db,'settings','app'), {currentEvent: STATE.currentEvent, eventSettings: newSettings}, {merge:true});
+    document.getElementById('admin_esc_msg').innerHTML = '<div class="banner banner-ok">已保存 ✓</div>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('admin_esc_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
+  }
+}
+async function deleteRecord(kind, id){
+  try{
+    await deleteDoc(doc(db, kind==='passenger'?'passengers':'drivers', id));
+  }catch(e){
+    console.error(e);
+    alert('删除失败，请重试');
+  }
+}
+async function clearEventData(){
+  const ev = STATE.adminEvent;
+  if(!confirm('确定要清除「'+ev+'」的所有登记资料吗？这个动作无法恢复。')) return;
+  const jobs = [
+    ...STATE.passengers.filter(p=>p.event===ev).map(p=>deleteDoc(doc(db,'passengers',p.id))),
+    ...STATE.drivers.filter(d=>d.event===ev).map(d=>deleteDoc(doc(db,'drivers',d.id))),
+  ];
+  try{
+    await Promise.all(jobs);
+  }catch(e){
+    console.error(e);
+    alert('清除过程中发生错误，请重新整理页面确认结果');
+  }
+}
+function exportBackup(){
+  const sel = STATE.adminEvent;
+  const passengers = STATE.passengers.filter(p=>p.event===sel);
+  const drivers = STATE.drivers.filter(d=>d.event===sel);
+  const data = JSON.stringify({event:sel, exportedAt:new Date().toString(), passengers, drivers}, null, 2);
+  const box = document.getElementById('backup_box');
+  box.style.display='block';
+  box.value = data;
+  document.getElementById('copyBackupBtn').style.display='block';
+}
+async function copyBackup(){
+  const box = document.getElementById('backup_box');
+  box.select();
+  try{
+    await navigator.clipboard.writeText(box.value);
+    alert('已复制！你可以贴到备忘录或WhatsApp给自己存起来。');
+  }catch(e){
+    alert('自动复制失败，文字已经帮你全选好了，请手动复制（长按 → 复制）。');
+  }
+}
+
+/* ================= INIT ================= */
+function init(){
+  render();
+  attachListeners();
+  // Firestore listeners fire on data changes, but the escalation threshold
+  // depends on wall-clock time, so also re-render periodically while on
+  // the schedule tab to keep that comparison current.
+  setInterval(()=>{
+    if(STATE.tab==='schedule') renderTab();
+  }, 30000);
+}
+init();
+
+/* Inline onclick/onchange attributes run in global scope, but this is a
+   module script (needed for the Firebase SDK import), so its functions
+   aren't global by default — expose the ones referenced from HTML. */
+Object.assign(window, {
+  switchTab, showZonePoint, toggleField, submitPassenger, toggleZoneChips,
+  submitDriver, manualRefresh, adminSaveEvent, adminSaveEscalation,
+  deleteRecord, clearEventData, exportBackup, copyBackup,
+});
+</script>
+</body>
+</html>
