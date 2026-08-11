@@ -153,7 +153,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 /* ================= FIREBASE CONFIG =================
    把下面这几个值换成你自己 Firebase 专案的设定（在 Firebase 控制台 
@@ -181,6 +181,9 @@ const ZONES = [
 const TURNAROUND_MIN = 30;
 const BATCH_WINDOW_MIN = 15;
 const ESCALATION_EXTRA_TRIPS = 2;
+/* 管理分页的密码 —— 只有知道这个密码的人才能用「管理」功能。
+   建议换成你自己的密码，换完记得也要重新上传到 GitHub。 */
+const ADMIN_PIN = "0816";
 
 /* ================= STATE ================= */
 let STATE = {
@@ -193,6 +196,7 @@ let STATE = {
   lastFetch: null,
   scheduleEvent: null,
   adminEvent: null,
+  adminUnlocked: localStorage.getItem('churchRideAdminUnlocked')==='1',
 };
 
 /* ================= FIRESTORE HELPERS ================= */
@@ -608,8 +612,8 @@ function renderSchedule(){
     return `<div class="card"><div class="empty">还没有人登记。分享链接给会友和司机开始登记吧。</div></div>`;
   }
 
-  const passengers = STATE.passengers.filter(p=>p.event===sel);
-  const drivers = STATE.drivers.filter(d=>d.event===sel);
+  const passengers = STATE.passengers.filter(p=>p.event===sel && !p.hidden);
+  const drivers = STATE.drivers.filter(d=>d.event===sel && !d.hidden);
   const settings = getEventSettings(sel);
   const sched = computeSchedule(passengers, drivers, settings.escalationTime);
 
@@ -703,12 +707,23 @@ function manualRefresh(){
 
 /* ---- Admin ---- */
 function renderAdmin(){
+  if(!STATE.adminUnlocked){
+    return `
+    <div class="card">
+      <h2><span class="badge">🔒</span> 需要密码</h2>
+      <div class="hint">这个分页只给负责的同工用。</div>
+      <label>请输入密码</label>
+      <input type="text" id="admin_pin_input" placeholder="密码">
+      <button class="btn" onclick="unlockAdmin()">进入</button>
+      <div id="admin_pin_msg"></div>
+    </div>`;
+  }
   const events = eventList();
   const sel = STATE.adminEvent && events.includes(STATE.adminEvent) ? STATE.adminEvent : (STATE.currentEvent || events[0] || '');
   STATE.adminEvent = sel;
 
-  const passengers = STATE.passengers.filter(p=>p.event===sel);
-  const drivers = STATE.drivers.filter(d=>d.event===sel);
+  const passengers = STATE.passengers.filter(p=>p.event===sel && !p.hidden);
+  const drivers = STATE.drivers.filter(d=>d.event===sel && !d.hidden);
   const settings = getEventSettings(sel);
 
   return `
@@ -770,6 +785,16 @@ function wireAdminEvents(){
   const sel = document.getElementById('adminEventSel');
   if(sel) sel.onchange = ()=>{ STATE.adminEvent = sel.value; renderTab(); };
 }
+function unlockAdmin(){
+  const val = document.getElementById('admin_pin_input').value;
+  if(val === ADMIN_PIN){
+    STATE.adminUnlocked = true;
+    localStorage.setItem('churchRideAdminUnlocked','1');
+    renderTab();
+  }else{
+    document.getElementById('admin_pin_msg').innerHTML = '<div class="banner banner-alert">密码不对，请再试一次</div>';
+  }
+}
 async function adminSaveEvent(){
   const val = document.getElementById('admin_currentEvent').value.trim();
   try{
@@ -794,7 +819,7 @@ async function adminSaveEscalation(){
 }
 async function deleteRecord(kind, id){
   try{
-    await deleteDoc(doc(db, kind==='passenger'?'passengers':'drivers', id));
+    await setDoc(doc(db, kind==='passenger'?'passengers':'drivers', id), {hidden:true}, {merge:true});
   }catch(e){
     console.error(e);
     alert('删除失败，请重试');
@@ -804,8 +829,8 @@ async function clearEventData(){
   const ev = STATE.adminEvent;
   if(!confirm('确定要清除「'+ev+'」的所有登记资料吗？这个动作无法恢复。')) return;
   const jobs = [
-    ...STATE.passengers.filter(p=>p.event===ev).map(p=>deleteDoc(doc(db,'passengers',p.id))),
-    ...STATE.drivers.filter(d=>d.event===ev).map(d=>deleteDoc(doc(db,'drivers',d.id))),
+    ...STATE.passengers.filter(p=>p.event===ev).map(p=>setDoc(doc(db,'passengers',p.id),{hidden:true},{merge:true})),
+    ...STATE.drivers.filter(d=>d.event===ev).map(d=>setDoc(doc(db,'drivers',d.id),{hidden:true},{merge:true})),
   ];
   try{
     await Promise.all(jobs);
@@ -816,8 +841,8 @@ async function clearEventData(){
 }
 function exportBackup(){
   const sel = STATE.adminEvent;
-  const passengers = STATE.passengers.filter(p=>p.event===sel);
-  const drivers = STATE.drivers.filter(d=>d.event===sel);
+  const passengers = STATE.passengers.filter(p=>p.event===sel && !p.hidden);
+  const drivers = STATE.drivers.filter(d=>d.event===sel && !d.hidden);
   const data = JSON.stringify({event:sel, exportedAt:new Date().toString(), passengers, drivers}, null, 2);
   const box = document.getElementById('backup_box');
   box.style.display='block';
@@ -854,7 +879,7 @@ init();
 Object.assign(window, {
   switchTab, showZonePoint, toggleField, submitPassenger, toggleZoneChips,
   submitDriver, manualRefresh, adminSaveEvent, adminSaveEscalation,
-  deleteRecord, clearEventData, exportBackup, copyBackup,
+  deleteRecord, clearEventData, exportBackup, copyBackup, unlockAdmin,
 });
 </script>
 </body>
