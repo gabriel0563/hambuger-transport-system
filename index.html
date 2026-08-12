@@ -145,6 +145,8 @@
   .trip-driver-meta{font-size:12px;color:var(--ink-muted);margin-top:2px;}
   .trip-driver-call{color:var(--teal-dark);font-weight:700;text-decoration:none;font-size:12.5px;background:var(--teal-pale);padding:7px 13px;border-radius:999px;white-space:nowrap;}
   .stop-badge{width:22px;height:22px;border-radius:50%;background:var(--amber-pale);color:#8A5A16;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:none;}
+  .type-badge{display:inline-block;margin-left:6px;font-size:11px;font-weight:700;background:var(--amber-pale);color:#8A5A16;padding:3px 9px;border-radius:999px;vertical-align:middle;}
+  .plate-badge{display:inline-block;font-size:13px;font-weight:800;letter-spacing:1.5px;background:var(--ink);color:#fff;padding:4px 10px;border-radius:7px;text-transform:uppercase;}
   .stop-time{font-size:13px;font-weight:800;color:var(--teal-dark);}
   .eta-line{margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);font-size:12px;color:var(--ink-muted);text-align:center;}
   .pax-list{margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
@@ -189,17 +191,26 @@ const db = getFirestore(fbApp);
 /* ================= CONFIG ================= */
 const ZONES = [
   {id:'z1', label:'Dahlia／Sakura／Allamanda', point:'集合点：Dahlia Busstop', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Dahlia Busstop')},
-  {id:'z2', label:'Cempaka／BRC／TAZ', point:'集合点：Cempaka Office 前', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Cempaka Office')},
-  {id:'z3', label:'Rafflesia', point:'集合点：另行安排（请见备注或询问同工）', driveMinFromChurch:20, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Rafflesia College')},
-  {id:'z4', label:'UJ', point:'集合点：Roundabout（靠近 Cempaka）', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS roundabout near Cempaka')},
-  {id:'z5', label:"DM（D'Milenia Samarahan）", point:"集合点：D'Milenia 楼下", driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent("D'Milenia Samarahan")},
+  {id:'z2', label:'Cempaka', point:'集合点：Cempaka Office 前', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Cempaka College')},
+  {id:'z7', label:'BRC／TAZ', point:'集合点：BRC 布告栏', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS BRC TAZ Samarahan')},
+  {id:'z4', label:'Unijaya', point:'集合点：Unijaya Roundabout', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('Unijaya Samarahan roundabout')},
+  {id:'z5', label:"D'Millenia", point:"集合点：D'Millenia 楼下", driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent("D'Millenia Samarahan")},
+  {id:'z11', label:'Kenanga', point:'集合点：Kenanga（详细位置请补充）', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Kenanga Samarahan')},
+  {id:'z12', label:'Academia 门口', point:'集合点：Academia 门口', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Academia Samarahan')},
+  {id:'z13', label:'Seroja', point:'集合点：Seroja（详细位置请补充）', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Seroja Samarahan')},
+  {id:'z3', label:'Rafflesia', point:'集合点：另行安排（请见备注或询问同工）', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Rafflesia College')},
+  {id:'z8', label:'IPG Gazebo', point:'集合点：IPG Gazebo', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('IPG Samarahan Gazebo')},
+  {id:'z10', label:'Eduvista', point:'集合点：Eduvista 楼下', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('Eduvista Samarahan')},
+  {id:'z9', label:'IMAS-Appartment', point:'集合点：IMAS-Appartment 楼下', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('IMAS Apartment Samarahan')},
   {id:'z6', label:'其他／特殊安排', point:'请在备注注明详细地点', driveMinFromChurch:10, mapLink:''},
 ];
-// Rough drive-time model: z1/z2/z4/z5 sit close together on campus (a couple
-// of minutes apart by road); z3/z6 are treated as a separate, farther stop.
-// These are straight-line-distance estimates, not real routing — nudge the
-// numbers above (driveMinFromChurch) or these constants if they're off.
-const NEARBY_CLUSTER = ['z1','z2','z4','z5'];
+// Rough drive-time model: the campus-cluster zones (z1,z2,z7,z4,z5,z11,z12,z13)
+// sit close together — a few minutes apart by road. z3/z8/z9/z10 (Rafflesia,
+// IPG, IMAS-Appartment, Eduvista) are a separate, farther cluster. z6 (other)
+// is unknown, so it's not treated as "nearby" for hop purposes. These are
+// estimates, not real routing — nudge driveMinFromChurch above or the
+// constants below if they're off.
+const NEARBY_CLUSTER = ['z1','z2','z7','z4','z5','z11','z12','z13'];
 const NEARBY_HOP_MIN = 5;
 const FAR_HOP_MIN = 15;
 function hopMinutes(zoneIdA, zoneIdB){
@@ -756,8 +767,7 @@ function renderDirectionBlock(title, result){
       </div>
       <div class="trip-driver">
         <div>
-          <div class="trip-driver-name">🚗 司机：${esc(a.driverName)}</div>
-          <div class="trip-driver-meta">${a.driverType==='van'?'福音车':'私家车'} · 车牌 ${esc(a.driverPlate||'未填')}</div>
+          <div class="trip-driver-name">🚗 司机：${esc(a.driverName)}<span class="type-badge">${a.driverType==='van'?'福音车':'私家车'}</span> <span class="plate-badge">${esc((a.driverPlate||'未填').toUpperCase())}</span></div>
         </div>
         <a class="trip-driver-call" href="${telHref(a.driverPhone)}">${esc(a.driverPhone)}</a>
       </div>
@@ -853,7 +863,7 @@ function renderAdmin(){
     ${drivers.length===0 ? '<div class="empty">没有资料</div>' : drivers.map(d=>`
       <div class="list-row">
         <div>
-          <div>${esc(d.name)}（${esc(d.plate||'未填车牌')}） · ${d.type==='van'?'福音车':'私家车'} · ${d.capacity}位 x${d.maxTrips}趟</div>
+          <div>${esc(d.name)}（${esc((d.plate||'未填车牌').toUpperCase())}） · ${d.type==='van'?'福音车':'私家车'} · ${d.capacity}位 x${d.maxTrips}趟</div>
           <div class="meta">${d.zones.includes('any')?'不限区域':d.zones.map(z=>zoneById(z)?.label||z).join('、')}</div>
         </div>
         <button class="btn btn-ghost" onclick="deleteRecord('driver','${d.id}')">删除</button>
