@@ -6,19 +6,19 @@
 <title>载送排班系统</title>
 <style>
   :root{
-    --bg:#EEF2EF;
+    --bg:#FBEBD6;
     --surface:#FFFFFF;
-    --border:#DCE3DF;
-    --ink:#16241F;
-    --ink-muted:#5B6B63;
-    --teal:#0F6B62;
-    --teal-dark:#0B4F49;
-    --teal-pale:#E3F0EE;
-    --amber:#D98E2B;
-    --amber-pale:#FBF0DE;
-    --alert:#C0392B;
-    --alert-pale:#FBEAE8;
-    --radius:14px;
+    --border:#F0D6AE;
+    --ink:#472B16;
+    --ink-muted:#93714E;
+    --teal:#D8602A;
+    --teal-dark:#A8451B;
+    --teal-pale:#FBDFC3;
+    --amber:#E7A430;
+    --amber-pale:#FCEACA;
+    --alert:#C1422E;
+    --alert-pale:#FAE1D8;
+    --radius:26px;
   }
   *{box-sizing:border-box;}
   body{
@@ -33,26 +33,36 @@
 
   /* header / route motif */
   .hero{
-    background:linear-gradient(135deg,var(--teal-dark),var(--teal));
+    position:relative;
+    overflow:hidden;
+    background:linear-gradient(135deg,var(--teal-dark),var(--teal) 60%,var(--amber));
     color:#fff;
-    padding:22px 18px 26px;
-    border-radius:0 0 22px 22px;
+    padding:24px 20px 28px;
+    border-radius:0 0 34px 34px;
   }
-  .hero h1{margin:0 0 4px;font-size:20px;font-weight:700;letter-spacing:.2px;}
-  .hero p{margin:0;font-size:13px;opacity:.85;}
-  .route-line{display:flex;align-items:center;gap:6px;margin-top:14px;opacity:.9;}
-  .route-line .dot{width:8px;height:8px;border-radius:50%;background:#fff;flex:none;}
+  .hero::before{
+    content:"";position:absolute;top:-46px;right:-36px;width:150px;height:150px;
+    border-radius:50%;background:rgba(255,255,255,.14);
+  }
+  .hero::after{
+    content:"";position:absolute;bottom:-60px;right:60px;width:100px;height:100px;
+    border-radius:50%;background:rgba(255,255,255,.10);
+  }
+  .hero h1{margin:0 0 4px;font-size:21px;font-weight:700;letter-spacing:.2px;position:relative;}
+  .hero p{margin:0;font-size:13px;opacity:.9;position:relative;}
+  .route-line{display:flex;align-items:center;gap:6px;margin-top:14px;opacity:.95;position:relative;}
+  .route-line .dot{width:9px;height:9px;border-radius:50%;background:#fff;flex:none;}
   .route-line .seg{flex:1;height:1px;background:repeating-linear-gradient(90deg,#fff 0 6px,transparent 6px 11px);}
   .route-line .lbl{font-size:11px;white-space:nowrap;}
 
   /* tabs */
   .tabs{
-    display:flex;gap:6px;padding:14px 14px 0;
+    display:flex;gap:8px;padding:16px 14px 0;
     overflow-x:auto;
   }
   .tab-btn{
     flex:none;
-    padding:9px 14px;
+    padding:10px 16px;
     border-radius:999px;
     border:1px solid var(--border);
     background:var(--surface);
@@ -69,46 +79,46 @@
     background:var(--surface);
     border:1px solid var(--border);
     border-radius:var(--radius);
-    padding:16px;
-    margin-bottom:14px;
+    padding:20px;
+    margin-bottom:16px;
   }
   .card h2{font-size:15px;margin:0 0 12px;display:flex;align-items:center;gap:8px;}
   .card h2 .badge{
-    width:22px;height:22px;border-radius:50%;background:var(--teal-pale);color:var(--teal-dark);
+    width:24px;height:24px;border-radius:50%;background:var(--teal-pale);color:var(--teal-dark);
     display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:none;
   }
 
   label{display:block;font-size:12.5px;color:var(--ink-muted);margin:12px 0 5px;font-weight:600;}
   label:first-of-type{margin-top:0;}
   input[type=text],input[type=tel],input[type=time],input[type=number],select,textarea{
-    width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;
-    font-size:14.5px;background:#fbfcfb;color:var(--ink);font-family:inherit;
+    width:100%;padding:11px 16px;border:1px solid var(--border);border-radius:18px;
+    font-size:14.5px;background:#FFFBF5;color:var(--ink);font-family:inherit;
   }
   input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;background:#fff;}
-  textarea{resize:vertical;min-height:56px;}
+  textarea{resize:vertical;min-height:56px;border-radius:20px;}
   .hint{font-size:12px;color:var(--ink-muted);margin-top:4px;}
-  .zone-point{font-size:12px;color:var(--teal-dark);margin-top:4px;background:var(--teal-pale);padding:6px 9px;border-radius:8px;display:none;}
+  .zone-point{font-size:12px;color:var(--teal-dark);margin-top:4px;background:var(--teal-pale);padding:8px 12px;border-radius:14px;display:none;}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .check-row{display:flex;align-items:center;gap:8px;margin-top:14px;}
   .check-row input{width:auto;}
   .check-row span{font-size:13.5px;font-weight:600;}
   .zone-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;}
   .zone-chip{
-    border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:13px;
-    display:flex;align-items:center;gap:7px;cursor:pointer;background:#fbfcfb;
+    border:1px solid var(--border);border-radius:16px;padding:9px 12px;font-size:13px;
+    display:flex;align-items:center;gap:7px;cursor:pointer;background:#FFFBF5;
   }
   .zone-chip input{width:auto;}
 
   .btn{
     display:inline-flex;align-items:center;justify-content:center;gap:6px;
-    background:var(--teal);color:#fff;border:none;border-radius:10px;
-    padding:12px 16px;font-size:14.5px;font-weight:700;cursor:pointer;width:100%;margin-top:16px;
+    background:var(--teal);color:#fff;border:none;border-radius:999px;
+    padding:13px 18px;font-size:14.5px;font-weight:700;cursor:pointer;width:100%;margin-top:16px;
   }
   .btn:active{background:var(--teal-dark);}
-  .btn-ghost{background:transparent;color:var(--alert);border:1px solid var(--alert-pale);width:auto;padding:6px 10px;font-size:12px;margin-top:0;}
+  .btn-ghost{background:transparent;color:var(--alert);border:1px solid var(--alert-pale);width:auto;padding:7px 14px;font-size:12px;margin-top:0;}
   .btn-secondary{background:var(--surface);color:var(--teal-dark);border:1px solid var(--teal);}
 
-  .banner{border-radius:10px;padding:10px 12px;font-size:13px;margin-top:12px;}
+  .banner{border-radius:16px;padding:11px 14px;font-size:13px;margin-top:12px;}
   .banner-ok{background:var(--teal-pale);color:var(--teal-dark);}
   .banner-warn{background:var(--amber-pale);color:#8A5A16;}
   .banner-alert{background:var(--alert-pale);color:var(--alert);}
@@ -117,30 +127,30 @@
   .event-select{display:flex;gap:8px;align-items:center;margin-bottom:10px;}
   .event-select select{flex:1;}
   .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:4px;}
-  .stat{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 6px;text-align:center;}
+  .stat{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:12px 6px;text-align:center;}
   .stat b{display:block;font-size:18px;color:var(--teal-dark);}
   .stat span{font-size:10.5px;color:var(--ink-muted);}
 
   .section-title{font-size:14px;font-weight:700;margin:20px 0 10px;display:flex;align-items:center;gap:8px;}
   .section-title .line{flex:1;height:1px;background:var(--border);}
 
-  .trip-card{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;background:var(--surface);}
+  .trip-card{border:1px solid var(--border);border-radius:22px;padding:14px 16px;margin-bottom:10px;background:var(--surface);}
   .trip-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
   .trip-time{font-size:20px;font-weight:800;color:var(--teal-dark);line-height:1;}
   .trip-zone{font-size:13px;font-weight:700;margin-top:2px;}
   .trip-point{font-size:11.5px;color:var(--ink-muted);}
-  .trip-badge{background:var(--amber-pale);color:#8A5A16;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap;}
+  .trip-badge{background:var(--amber-pale);color:#8A5A16;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap;}
   .trip-driver{font-size:12.5px;color:var(--ink-muted);margin-top:8px;display:flex;justify-content:space-between;align-items:center;}
   .pax-list{margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
   .pax-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;}
   .pax-row a{color:var(--teal-dark);text-decoration:none;font-size:11.5px;font-weight:700;}
   .delayed{color:var(--amber);font-weight:700;}
 
-  .unassigned-card{border:1px solid #f0c9c2;background:var(--alert-pale);border-radius:12px;padding:12px 14px;margin-bottom:8px;}
+  .unassigned-card{border:1px solid #F0C3AE;background:var(--alert-pale);border-radius:22px;padding:14px 16px;margin-bottom:8px;}
   .unassigned-card b{font-size:13.5px;}
-  .unassigned-card .meta{font-size:12px;color:#8a3226;margin-top:2px;}
+  .unassigned-card .meta{font-size:12px;color:#8A3018;margin-top:2px;}
 
-  .list-row{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;}
+  .list-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px;}
   .list-row:last-child{border-bottom:none;}
   .list-row .meta{font-size:11.5px;color:var(--ink-muted);margin-top:2px;}
 
@@ -148,6 +158,7 @@
   .updated-at{text-align:center;font-size:11px;color:var(--ink-muted);margin-top:8px;}
 </style>
 </head>
+
 <body>
 <div id="app"></div>
 
@@ -190,7 +201,7 @@ let STATE = {
   tab: 'passenger',
   passengers: [],
   drivers: [],
-  currentEvent: '',
+  activeEvents: [],
   eventSettings: {},
   loaded: false,
   lastFetch: null,
@@ -221,7 +232,7 @@ function attachListeners(){
 
   onSnapshot(doc(db,'settings','app'), (snap)=>{
     const data = snap.exists() ? snap.data() : {};
-    STATE.currentEvent = data.currentEvent || '';
+    STATE.activeEvents = data.activeEvents || [];
     STATE.eventSettings = data.eventSettings || {};
     STATE.loaded = true;
     STATE.lastFetch = new Date();
@@ -249,7 +260,7 @@ function eventList(){
   const set = new Set();
   STATE.passengers.forEach(p=>set.add(p.event||'(未命名)'));
   STATE.drivers.forEach(d=>set.add(d.event||'(未命名)'));
-  if(STATE.currentEvent) set.add(STATE.currentEvent);
+  STATE.activeEvents.forEach(e=>set.add(e));
   const arr = Array.from(set);
   arr.sort();
   return arr;
@@ -382,7 +393,7 @@ function render(){
   app.innerHTML = `
     <div class="hero">
       <h1>🚐 载送排班系统</h1>
-      <p>${STATE.currentEvent ? '本次活动：'+esc(STATE.currentEvent) : '登记去程／回程，系统自动配对司机'}</p>
+      <p>${STATE.activeEvents.length ? '开放报名中：'+STATE.activeEvents.map(esc).join('、') : '登记去程／回程，系统自动配对司机'}</p>
       <div class="route-line">
         <div class="dot"></div><div class="seg"></div>
         <div class="lbl">宿舍集合点</div><div class="seg"></div>
@@ -419,9 +430,17 @@ function renderTab(){
 }
 
 /* ---- Passenger form ---- */
+function eventFieldHtml(prefix){
+  if(STATE.activeEvents.length<=1){
+    const ev = STATE.activeEvents[0] || '';
+    return `<div class="banner banner-ok" style="margin-top:0;">${esc(ev)}</div>`;
+  }
+  const opts = STATE.activeEvents.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');
+  return `<select id="${prefix}_event" required><option value="">请选择活动</option>${opts}</select>`;
+}
 function renderPassengerForm(){
-  if(!STATE.currentEvent){
-    return `<div class="card"><div class="empty">同工还没设定本次活动，请稍后再试，或联系同工。</div></div>`;
+  if(STATE.activeEvents.length===0){
+    return `<div class="card"><div class="empty">同工还没开放任何活动报名，请稍后再试，或联系同工。</div></div>`;
   }
   const zoneOpts = ZONES.map(z=>`<option value="${z.id}">${esc(z.label)}</option>`).join('');
   return `
@@ -429,7 +448,7 @@ function renderPassengerForm(){
     <h2><span class="badge">1</span> 乘客登记</h2>
     <form id="pForm" onsubmit="return submitPassenger(event)">
       <label>活动／日期</label>
-      <div class="banner banner-ok" style="margin-top:0;">${esc(STATE.currentEvent)}</div>
+      ${eventFieldHtml('p')}
 
       <label>姓名</label>
       <input type="text" id="p_name" required placeholder="你的名字">
@@ -473,9 +492,14 @@ function showZonePoint(id, zoneId){
     el.innerHTML = esc(z.point) + (z.mapLink ? ` · <a href="${z.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;">📍在地图打开</a>` : '');
   } else { el.style.display='none'; }
 }
+function getSelectedEvent(prefix){
+  if(STATE.activeEvents.length<=1) return STATE.activeEvents[0] || '';
+  const el = document.getElementById(prefix+'_event');
+  return el ? el.value : '';
+}
 async function submitPassenger(ev){
   ev.preventDefault();
-  const event_ = STATE.currentEvent;
+  const event_ = getSelectedEvent('p');
   const name = document.getElementById('p_name').value.trim();
   const phone = document.getElementById('p_phone').value.trim();
   const zone = document.getElementById('p_zone').value;
@@ -486,6 +510,7 @@ async function submitPassenger(ev){
   const notes = document.getElementById('p_notes').value.trim();
   const msg = document.getElementById('p_msg');
 
+  if(!event_){ msg.innerHTML = '<div class="banner banner-alert">请选择活动</div>'; return false; }
   if(!zone){ msg.innerHTML = '<div class="banner banner-alert">请选择宿舍集合区</div>'; return false; }
   if(!goingNeeded && !returnNeeded){ msg.innerHTML = '<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
 
@@ -511,8 +536,8 @@ async function submitPassenger(ev){
 
 /* ---- Driver form ---- */
 function renderDriverForm(){
-  if(!STATE.currentEvent){
-    return `<div class="card"><div class="empty">同工还没设定本次活动，请稍后再试，或联系同工。</div></div>`;
+  if(STATE.activeEvents.length===0){
+    return `<div class="card"><div class="empty">同工还没开放任何活动报名，请稍后再试，或联系同工。</div></div>`;
   }
   const zoneChips = ZONES.map(z=>`
     <label class="zone-chip"><input type="checkbox" class="d_zone_chk" value="${z.id}">${esc(z.label)}</label>
@@ -522,7 +547,7 @@ function renderDriverForm(){
     <h2><span class="badge">2</span> 司机登记</h2>
     <form id="dForm" onsubmit="return submitDriver(event)">
       <label>活动／日期</label>
-      <div class="banner banner-ok" style="margin-top:0;">${esc(STATE.currentEvent)}</div>
+      ${eventFieldHtml('d')}
 
       <label>姓名</label>
       <input type="text" id="d_name" required placeholder="你的名字">
@@ -566,7 +591,7 @@ function toggleZoneChips(anyChecked){
 }
 async function submitDriver(ev){
   ev.preventDefault();
-  const event_ = STATE.currentEvent;
+  const event_ = getSelectedEvent('d');
   const name = document.getElementById('d_name').value.trim();
   const phone = document.getElementById('d_phone').value.trim();
   const type = document.getElementById('d_type').value;
@@ -577,6 +602,7 @@ async function submitDriver(ev){
   const zoneAny = document.getElementById('d_zoneAny').checked;
   const msg = document.getElementById('d_msg');
 
+  if(!event_){ msg.innerHTML = '<div class="banner banner-alert">请选择活动</div>'; return false; }
   if(!goingAvailable && !returnAvailable){ msg.innerHTML='<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
   let zones = ['any'];
   if(!zoneAny){
@@ -605,7 +631,7 @@ async function submitDriver(ev){
 /* ---- Schedule ---- */
 function renderSchedule(){
   const events = eventList();
-  const sel = STATE.scheduleEvent && events.includes(STATE.scheduleEvent) ? STATE.scheduleEvent : (STATE.currentEvent || events[events.length-1] || '');
+  const sel = STATE.scheduleEvent && events.includes(STATE.scheduleEvent) ? STATE.scheduleEvent : (STATE.activeEvents[0] || events[events.length-1] || '');
   STATE.scheduleEvent = sel;
 
   if(events.length===0){
@@ -719,7 +745,7 @@ function renderAdmin(){
     </div>`;
   }
   const events = eventList();
-  const sel = STATE.adminEvent && events.includes(STATE.adminEvent) ? STATE.adminEvent : (STATE.currentEvent || events[0] || '');
+  const sel = STATE.adminEvent && events.includes(STATE.adminEvent) ? STATE.adminEvent : (STATE.activeEvents[0] || events[0] || '');
   STATE.adminEvent = sel;
 
   const passengers = STATE.passengers.filter(p=>p.event===sel && !p.hidden);
@@ -728,10 +754,18 @@ function renderAdmin(){
 
   return `
   <div class="card">
-    <h2><span class="badge">⚙</span> 设置本次活动</h2>
-    <label>本次活动名称／日期（乘客／司机登记表会自动带出这个名字，他们不能自己改，避免打错字对不上）</label>
-    <input type="text" id="admin_currentEvent" value="${esc(STATE.currentEvent)}" placeholder="例如：8月16日主日">
-    <button class="btn" onclick="adminSaveEvent()">保存</button>
+    <h2><span class="badge">⚙</span> 开放中的活动</h2>
+    <div class="hint">乘客／司机登记表会看到这里开放的活动名单让他们选，不能自己打字，避免打错字对不上。可以同时开放好几场。</div>
+
+    ${STATE.activeEvents.length===0 ? '<div class="empty">目前没有开放任何活动</div>' : STATE.activeEvents.map(e=>`
+      <div class="list-row">
+        <div>${esc(e)}</div>
+        <button class="btn btn-ghost" onclick="closeEvent(decodeURIComponent('${encodeURIComponent(e)}'))">停止收报名</button>
+      </div>`).join('')}
+
+    <label>开放新活动</label>
+    <input type="text" id="admin_new_event" placeholder="例如：8月16日主日">
+    <button class="btn" onclick="addEvent()">开放</button>
     <div id="admin_ev_msg"></div>
   </div>
 
@@ -795,14 +829,28 @@ function unlockAdmin(){
     document.getElementById('admin_pin_msg').innerHTML = '<div class="banner banner-alert">密码不对，请再试一次</div>';
   }
 }
-async function adminSaveEvent(){
-  const val = document.getElementById('admin_currentEvent').value.trim();
+async function addEvent(){
+  const val = document.getElementById('admin_new_event').value.trim();
+  const msg = document.getElementById('admin_ev_msg');
+  if(!val){ msg.innerHTML = '<div class="banner banner-alert">请输入活动名称</div>'; return; }
+  if(STATE.activeEvents.includes(val)){ msg.innerHTML = '<div class="banner banner-alert">这个活动已经开放中了</div>'; return; }
+  const newList = [...STATE.activeEvents, val];
   try{
-    await setDoc(doc(db,'settings','app'), {currentEvent: val, eventSettings: STATE.eventSettings||{}}, {merge:true});
-    document.getElementById('admin_ev_msg').innerHTML = '<div class="banner banner-ok">已保存 ✓</div>';
+    await setDoc(doc(db,'settings','app'), {activeEvents:newList, eventSettings: STATE.eventSettings||{}}, {merge:true});
+    msg.innerHTML = '<div class="banner banner-ok">已开放 ✓</div>';
+    document.getElementById('admin_new_event').value = '';
   }catch(e){
     console.error(e);
-    document.getElementById('admin_ev_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
+    msg.innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
+  }
+}
+async function closeEvent(name){
+  const newList = STATE.activeEvents.filter(e=>e!==name);
+  try{
+    await setDoc(doc(db,'settings','app'), {activeEvents:newList, eventSettings: STATE.eventSettings||{}}, {merge:true});
+  }catch(e){
+    console.error(e);
+    alert('操作失败，请重试');
   }
 }
 async function adminSaveEscalation(){
@@ -810,7 +858,7 @@ async function adminSaveEscalation(){
   const ev = STATE.adminEvent;
   const newSettings = {...STATE.eventSettings, [ev]: {...(STATE.eventSettings[ev]||{}), escalationTime: val}};
   try{
-    await setDoc(doc(db,'settings','app'), {currentEvent: STATE.currentEvent, eventSettings: newSettings}, {merge:true});
+    await setDoc(doc(db,'settings','app'), {activeEvents: STATE.activeEvents, eventSettings: newSettings}, {merge:true});
     document.getElementById('admin_esc_msg').innerHTML = '<div class="banner banner-ok">已保存 ✓</div>';
   }catch(e){
     console.error(e);
@@ -878,7 +926,7 @@ init();
    aren't global by default — expose the ones referenced from HTML. */
 Object.assign(window, {
   switchTab, showZonePoint, toggleField, submitPassenger, toggleZoneChips,
-  submitDriver, manualRefresh, adminSaveEvent, adminSaveEscalation,
+  submitDriver, manualRefresh, addEvent, closeEvent, adminSaveEscalation,
   deleteRecord, clearEventData, exportBackup, copyBackup, unlockAdmin,
 });
 </script>
