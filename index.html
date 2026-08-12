@@ -222,13 +222,27 @@ const BATCH_WINDOW_MIN = 15;
 // Cempaka has two actual meetup spots; which one to use depends on what
 // else is on the same trip (told to us by someone who knows the routes).
 function pointFor(zone, otherZoneIdsInTrip){
+  if(zone.id==='z6') return '各自地址（见下方名单）';
   if(zone.id==='z2'){
     if(otherZoneIdsInTrip.includes('z4')) return '集合点：Cempaka Cafe';
     if(otherZoneIdsInTrip.includes('z1')) return '集合点：Cempaka Office 前';
   }
+  if(zone.id==='z4'){
+    const pairedWithFarZone = otherZoneIdsInTrip.some(zid => !NEARBY_CLUSTER.includes(zid) && zid!=='z6');
+    return pairedWithFarZone ? '集合点：UJ MF Store（校外车顺路捎带）' : '集合点：Unijaya Roundabout';
+  }
   return zone.point;
 }
 const ESCALATION_EXTRA_TRIPS = 2;
+// The church's own vans — pre-set so drivers pick a plate instead of typing
+// it (avoids typos), and capacity auto-fills from here.
+const CHURCH_VANS = [
+  {plate:'QAA1245M', color:'白色', capacity:9},
+  {plate:'QAB7255', color:'白色', capacity:11},
+  {plate:'QAK4980', color:'灰色', capacity:10},
+  {plate:'QKX1422', color:'灰色', capacity:11},
+  {plate:'QCV9471', color:'灰色', capacity:6},
+];
 /* 管理分页的密码 —— 只有知道这个密码的人才能用「管理」功能。
    建议换成你自己的密码，换完记得也要重新上传到 GitHub。 */
 const ADMIN_PIN = "0816";
@@ -278,6 +292,9 @@ function attachListeners(){
 }
 function getEventSettings(eventName){
   return STATE.eventSettings[eventName] || {};
+}
+function getEventDestination(eventName){
+  return getEventSettings(eventName).destination || '教会';
 }
 
 /* ================= UTIL ================= */
@@ -382,7 +399,7 @@ function packBatches(batches, availableDrivers, driverState, relaxed, assignment
         const take = zq.items.splice(0, remainingCap);
         if(take.length===0) continue;
         remainingCap -= take.length;
-        stops.push({zoneId:zq.zoneId, passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes, hasDuty:p.hasDuty}))});
+        stops.push({zoneId:zq.zoneId, passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes, hasDuty:p.hasDuty, otherAddress:p.otherAddress}))});
       }
 
       assignments.push({
@@ -449,7 +466,7 @@ function render(){
         <div class="dot"></div><div class="seg"></div>
         <div class="lbl">宿舍集合点</div><div class="seg"></div>
         <div class="dot"></div><div class="seg"></div>
-        <div class="lbl">教会</div>
+        <div class="lbl">${STATE.activeEvents.length===1 ? esc(getEventDestination(STATE.activeEvents[0])) : '教会'}</div>
       </div>
     </div>
     <div class="tabs">
@@ -500,6 +517,11 @@ function refreshTimeOptions(prefix){
   const returnSel = document.getElementById(prefix+'_returnTime');
   if(goingSel) goingSel.innerHTML = timeOptionsHtml(settings.goingTimes);
   if(returnSel) returnSel.innerHTML = timeOptionsHtml(settings.returnTimes);
+  const dest = ev ? getEventDestination(ev) : '目的地';
+  const goingLbl = document.getElementById(prefix+'_goingLabel');
+  const returnLbl = document.getElementById(prefix+'_returnLabel');
+  if(goingLbl) goingLbl.textContent = prefix==='d' ? `去程（宿舍 → ${dest}）` : `需要去程（宿舍 → ${dest}）`;
+  if(returnLbl) returnLbl.textContent = prefix==='d' ? `回程（${dest} → 宿舍）` : `需要回程（${dest} → 宿舍）`;
 }
 function renderPassengerForm(){
   if(STATE.activeEvents.length===0){
@@ -507,6 +529,7 @@ function renderPassengerForm(){
   }
   const zoneOpts = ZONES.map(z=>`<option value="${z.id}">${esc(z.label)}</option>`).join('');
   const initialSettings = STATE.activeEvents.length===1 ? getEventSettings(STATE.activeEvents[0]) : {};
+  const initialDest = STATE.activeEvents.length===1 ? getEventDestination(STATE.activeEvents[0]) : '目的地';
   return `
   <div class="card">
     <h2><span class="badge">1</span> 乘客登记</h2>
@@ -522,20 +545,24 @@ function renderPassengerForm(){
       <div class="hint">帮朋友登记时，请用朋友本人的号码，不要用自己的号码重复填，不然资料会互相盖掉</div>
 
       <label>宿舍集合区</label>
-      <select id="p_zone" onchange="showZonePoint('p_zone_point',this.value)" required>
+      <select id="p_zone" onchange="showZonePoint('p_zone_point',this.value); toggleOtherAddress(this.value);" required>
         <option value="">请选择</option>${zoneOpts}
       </select>
       <div class="zone-point" id="p_zone_point"></div>
+      <div id="p_otherAddressWrap" style="display:none;">
+        <label>详细地址</label>
+        <input type="text" id="p_otherAddress" placeholder="请填写完整地址，方便司机找到你">
+      </div>
 
       <div class="check-row"><input type="checkbox" id="p_hasDuty"><span>这次有服事（需要提早到，会优先安排较早的车）</span></div>
 
-      <div class="check-row"><input type="checkbox" id="p_goingNeeded" checked onchange="toggleField('p_goingTimeWrap',this.checked)"><span>需要去程（宿舍 → 教会）</span></div>
+      <div class="check-row"><input type="checkbox" id="p_goingNeeded" checked onchange="toggleField('p_goingTimeWrap',this.checked)"><span id="p_goingLabel">需要去程（宿舍 → ${esc(initialDest)}）</span></div>
       <div id="p_goingTimeWrap">
         <label>几时要到？</label>
         <select id="p_goingTime">${timeOptionsHtml(initialSettings.goingTimes)}</select>
       </div>
 
-      <div class="check-row"><input type="checkbox" id="p_returnNeeded" checked onchange="toggleField('p_returnTimeWrap',this.checked)"><span>需要回程（教会 → 宿舍）</span></div>
+      <div class="check-row"><input type="checkbox" id="p_returnNeeded" checked onchange="toggleField('p_returnTimeWrap',this.checked)"><span id="p_returnLabel">需要回程（${esc(initialDest)} → 宿舍）</span></div>
       <div id="p_returnTimeWrap">
         <label>几时要走？</label>
         <select id="p_returnTime">${timeOptionsHtml(initialSettings.returnTimes)}</select>
@@ -558,6 +585,9 @@ function showZonePoint(id, zoneId){
     el.innerHTML = esc(z.point) + (z.mapLink ? ` · <a href="${z.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;">📍在地图打开</a>` : '');
   } else { el.style.display='none'; }
 }
+function toggleOtherAddress(zoneId){
+  document.getElementById('p_otherAddressWrap').style.display = zoneId==='z6' ? 'block' : 'none';
+}
 function getSelectedEvent(prefix){
   if(STATE.activeEvents.length<=1) return STATE.activeEvents[0] || '';
   const el = document.getElementById(prefix+'_event');
@@ -569,6 +599,7 @@ async function submitPassenger(ev){
   const name = document.getElementById('p_name').value.trim();
   const phone = document.getElementById('p_phone').value.trim();
   const zone = document.getElementById('p_zone').value;
+  const otherAddress = document.getElementById('p_otherAddress').value.trim();
   const hasDuty = document.getElementById('p_hasDuty').checked;
   const goingNeeded = document.getElementById('p_goingNeeded').checked;
   const goingTime = document.getElementById('p_goingTime').value;
@@ -579,13 +610,14 @@ async function submitPassenger(ev){
 
   if(!event_){ msg.innerHTML = '<div class="banner banner-alert">请选择活动</div>'; return false; }
   if(!zone){ msg.innerHTML = '<div class="banner banner-alert">请选择宿舍集合区</div>'; return false; }
+  if(zone==='z6' && !otherAddress){ msg.innerHTML = '<div class="banner banner-alert">请填写详细地址</div>'; return false; }
   if(!goingNeeded && !returnNeeded){ msg.innerHTML = '<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
   if(goingNeeded && !goingTime){ msg.innerHTML = '<div class="banner banner-alert">请选择去程时间（如果没有选项，请联系同工设定）</div>'; return false; }
   if(returnNeeded && !returnTime){ msg.innerHTML = '<div class="banner banner-alert">请选择回程时间（如果没有选项，请联系同工设定）</div>'; return false; }
 
   const existed = STATE.passengers.some(p=>p.event===event_ && p.phone===phone);
   const record = {
-    event: event_, name, phone, zone, hasDuty,
+    event: event_, name, phone, zone, otherAddress: zone==='z6'?otherAddress:'', hasDuty,
     goingNeeded, goingTime: goingNeeded?goingTime:'',
     returnNeeded, returnTime: returnNeeded?returnTime:'',
     notes, updatedAt: Date.now()
@@ -611,6 +643,7 @@ function renderDriverForm(){
   const zoneChips = ZONES.map(z=>`
     <label class="zone-chip"><input type="checkbox" class="d_zone_chk" value="${z.id}">${esc(z.label)}</label>
   `).join('');
+  const initialDest = STATE.activeEvents.length===1 ? getEventDestination(STATE.activeEvents[0]) : '目的地';
   return `
   <div class="card">
     <h2><span class="badge">2</span> 司机登记</h2>
@@ -624,20 +657,25 @@ function renderDriverForm(){
       <label>电话（WhatsApp）</label>
       <input type="tel" id="d_phone" required placeholder="012-3456789">
 
-      <label>车牌号码</label>
-      <input type="text" id="d_plate" required placeholder="例如：QAA 1234">
-      <div class="hint">方便同工和乘客在总表上认出是哪辆车</div>
-
       <label>身份</label>
-      <select id="d_type">
+      <select id="d_type" onchange="toggleDriverType(this.value)">
         <option value="van">教会福音车</option>
         <option value="private">私家车（临时帮忙）</option>
       </select>
 
+      <label>车牌号码</label>
+      <div id="d_plateWrap">
+        <select id="d_plate" required onchange="onVanPlateChange(this.value)">
+          <option value="">请选择车牌</option>
+          ${CHURCH_VANS.map(v=>`<option value="${esc(v.plate)}">${esc(v.plate)}（${esc(v.color)}）</option>`).join('')}
+        </select>
+      </div>
+      <div class="hint" id="d_plate_hint">选好车牌后，可载人数会自动填好</div>
+
       <div class="row2">
         <div>
           <label>可以载几位（不含司机）</label>
-          <input type="number" id="d_capacity" min="1" value="4" required>
+          <input type="number" id="d_capacity" min="1" required readonly placeholder="选车牌后自动填">
         </div>
         <div>
           <label>这个方向最多愿跑几趟</label>
@@ -647,8 +685,8 @@ function renderDriverForm(){
       <div class="hint">例如福音车愿意跑2趟，去程算2趟、回程也算2趟。如果人手真的不够，同工设定的自动加派机制可能会临时多请你跑一趟，请留意总表</div>
 
       <label>可以配合的时段</label>
-      <div class="check-row"><input type="checkbox" id="d_goingAvailable" checked><span>去程（宿舍 → 教会）</span></div>
-      <div class="check-row"><input type="checkbox" id="d_returnAvailable" checked><span>回程（教会 → 宿舍）</span></div>
+      <div class="check-row"><input type="checkbox" id="d_goingAvailable" checked><span id="d_goingLabel">去程（宿舍 → ${esc(initialDest)}）</span></div>
+      <div class="check-row"><input type="checkbox" id="d_returnAvailable" checked><span id="d_returnLabel">回程（${esc(initialDest)} → 宿舍）</span></div>
 
       <label>负责／熟悉的区域</label>
       <div class="check-row"><input type="checkbox" id="d_zoneAny" checked onchange="toggleZoneChips(this.checked)"><span>不限区域，都可以</span></div>
@@ -661,6 +699,32 @@ function renderDriverForm(){
 }
 function toggleZoneChips(anyChecked){
   document.getElementById('d_zoneGrid').style.display = anyChecked?'none':'grid';
+}
+function toggleDriverType(type){
+  const wrap = document.getElementById('d_plateWrap');
+  const capInput = document.getElementById('d_capacity');
+  const hint = document.getElementById('d_plate_hint');
+  if(type==='van'){
+    wrap.innerHTML = `<select id="d_plate" required onchange="onVanPlateChange(this.value)">
+      <option value="">请选择车牌</option>
+      ${CHURCH_VANS.map(v=>`<option value="${esc(v.plate)}">${esc(v.plate)}（${esc(v.color)}）</option>`).join('')}
+    </select>`;
+    capInput.value = '';
+    capInput.readOnly = true;
+    capInput.placeholder = '选车牌后自动填';
+    hint.textContent = '选好车牌后，可载人数会自动填好';
+  }else{
+    wrap.innerHTML = `<input type="text" id="d_plate" required placeholder="例如：QAA 1234">`;
+    capInput.readOnly = false;
+    capInput.value = '';
+    capInput.placeholder = '';
+    hint.textContent = '方便同工和乘客在总表上认出是哪辆车';
+  }
+}
+function onVanPlateChange(plate){
+  const van = CHURCH_VANS.find(v=>v.plate===plate);
+  const capInput = document.getElementById('d_capacity');
+  if(van) capInput.value = van.capacity;
 }
 async function submitDriver(ev){
   ev.preventDefault();
@@ -727,6 +791,7 @@ function renderSchedule(){
       : `<div class="hint" style="text-align:center;">未到 ${esc(settings.escalationTime)}，暂不自动加派。若有人未安排上车，同工可手动处理</div>`;
   }
 
+  const dest = getEventDestination(sel);
   return `
   <div class="card">
     <div class="event-select">
@@ -743,11 +808,11 @@ function renderSchedule(){
     <div class="updated-at">最后更新：${STATE.lastFetch ? STATE.lastFetch.toLocaleTimeString('zh-CN',{hour12:false}) : '-'}（每10秒自动刷新）</div>
   </div>
 
-  ${renderDirectionBlock('去程 · 宿舍 → 教会', sched.going)}
-  ${renderDirectionBlock('回程 · 教会 → 宿舍', sched.ret)}
+  ${renderDirectionBlock(`去程 · 宿舍 → ${esc(dest)}`, sched.going, dest)}
+  ${renderDirectionBlock(`回程 · ${esc(dest)} → 宿舍`, sched.ret, dest)}
   `;
 }
-function renderDirectionBlock(title, result){
+function renderDirectionBlock(title, result, dest){
   const {assignments, unassigned} = result;
   let html = `<div class="section-title">${title}<div class="line"></div></div>`;
   if(assignments.length===0 && unassigned.length===0){
@@ -784,9 +849,12 @@ function renderDirectionBlock(title, result){
         </div>
         <div class="pax-list">
           ${s.passengers.map((p,i)=>`
-            <div class="pax-row">
-              <span>${i+1}. ${esc(p.name)}${p.hasDuty?' <span class="type-badge" style="margin-left:4px;">服事</span>':''}</span>
-              <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a>
+            <div class="pax-row" style="${p.otherAddress?'align-items:flex-start;flex-direction:column;gap:2px;':''}">
+              <div style="display:flex;justify-content:space-between;width:100%;">
+                <span>${i+1}. ${esc(p.name)}${p.hasDuty?' <span class="type-badge" style="margin-left:4px;">服事</span>':''}</span>
+                <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a>
+              </div>
+              ${p.otherAddress ? `<div class="hint" style="margin:0 0 2px 14px;">📍 ${esc(p.otherAddress)}</div>` : ''}
             </div>`).join('')}
         </div>
       </div>`;
@@ -797,7 +865,7 @@ function renderDirectionBlock(title, result){
       const lastStop = timedStops[timedStops.length-1];
       const lastZoneConf = zoneById(lastStop.zoneId);
       const arriveMin = timeToMin(lastStop.estTime) + (lastZoneConf?.driveMinFromChurch ?? NEARBY_HOP_MIN);
-      etaLine = `<div class="eta-line">🏁 预计 ${minToTime(arriveMin)} 抵达教会</div>`;
+      etaLine = `<div class="eta-line">🏁 预计 ${minToTime(arriveMin)} 抵达${esc(dest)}</div>`;
     }
 
     html += `
@@ -825,6 +893,7 @@ function renderDirectionBlock(title, result){
       <div class="unassigned-card">
         <b>${esc(p.name)}</b> · ${esc(p.requestedTime)}
         <div class="meta">${esc(zone?zone.label:p.zone)}${mapTag} · <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a></div>
+        ${p.otherAddress ? `<div class="meta">📍 ${esc(p.otherAddress)}</div>` : ''}
       </div>`;
     });
   }
@@ -885,6 +954,15 @@ function renderAdmin(){
 
   ${sel ? `
   <div class="card">
+    <h2><span class="badge">🏁</span> 目的地 — ${esc(sel)}</h2>
+    <label>这次去程／回程的目的地叫什么？</label>
+    <input type="text" id="admin_destination" value="${esc(settings.destination||'教会')}" placeholder="例如：教会、某某营地">
+    <div class="hint">大部分时候是「教会」，不用改。如果这场活动的目的地不是教会（比如去营地），在这里改一次，登记表、总表都会自动换成新名字。</div>
+    <button class="btn btn-secondary" onclick="adminSaveDestination()">保存目的地</button>
+    <div id="admin_dest_msg"></div>
+  </div>
+
+  <div class="card">
     <h2><span class="badge">⚡</span> 自动加派设置 — ${esc(sel)}</h2>
     <label>加派门槛时间（可不设）</label>
     <input type="time" id="admin_escalationTime" value="${esc(settings.escalationTime||'')}">
@@ -924,7 +1002,7 @@ function renderAdmin(){
     ${passengers.length===0 ? '<div class="empty">没有资料</div>' : passengers.map(p=>`
       <div class="list-row">
         <div>
-          <div>${esc(p.name)} · ${esc(zoneById(p.zone)?.label||p.zone)}</div>
+          <div>${esc(p.name)} · ${esc(zoneById(p.zone)?.label||p.zone)}${p.otherAddress?' · 📍'+esc(p.otherAddress):''}</div>
           <div class="meta">${p.goingNeeded?'去 '+esc(p.goingTime):''} ${p.returnNeeded?'　回 '+esc(p.returnTime):''}</div>
         </div>
         <button class="btn btn-ghost" onclick="deleteRecord('passenger','${p.id}')">删除</button>
@@ -988,6 +1066,18 @@ async function closeEvent(name){
   }catch(e){
     console.error(e);
     alert('操作失败，请重试');
+  }
+}
+async function adminSaveDestination(){
+  const val = document.getElementById('admin_destination').value.trim() || '教会';
+  const ev = STATE.adminEvent;
+  const newSettings = {...STATE.eventSettings, [ev]: {...(STATE.eventSettings[ev]||{}), destination: val}};
+  try{
+    await setDoc(doc(db,'settings','app'), {activeEvents: STATE.activeEvents, eventSettings: newSettings}, {merge:true});
+    document.getElementById('admin_dest_msg').innerHTML = '<div class="banner banner-ok">已保存 ✓</div>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('admin_dest_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
   }
 }
 async function adminSaveEscalation(){
@@ -1096,9 +1186,10 @@ init();
    aren't global by default — expose the ones referenced from HTML. */
 Object.assign(window, {
   switchTab, showZonePoint, toggleField, submitPassenger, toggleZoneChips,
-  submitDriver, manualRefresh, addEvent, closeEvent, adminSaveEscalation,
+  submitDriver, manualRefresh, addEvent, closeEvent, adminSaveEscalation, adminSaveDestination,
   deleteRecord, clearEventData, exportBackup, copyBackup, unlockAdmin,
   refreshTimeOptions, addTimeOption, removeTimeOption,
+  toggleDriverType, onVanPlateChange, toggleOtherAddress,
 });
 </script>
 </body>
