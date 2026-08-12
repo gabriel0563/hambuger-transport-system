@@ -219,6 +219,9 @@ function hopMinutes(zoneIdA, zoneIdB){
 }
 const TURNAROUND_MIN = 30;
 const BATCH_WINDOW_MIN = 15;
+const DEFAULT_ARRIVAL_TIME = '08:00';
+const DEFAULT_PREP_BUFFER_MIN = 10;
+const DEFAULT_RETURN_START = '10:30';
 // Cempaka has two actual meetup spots; which one to use depends on what
 // else is on the same trip (told to us by someone who knows the routes).
 function pointFor(zone, otherZoneIdsInTrip){
@@ -415,25 +418,114 @@ function packBatches(batches, availableDrivers, driverState, relaxed, assignment
   });
 }
 
-function matchDirection(passengersAll, driversAll, direction, escalate){
-  const needField = direction==='going' ? 'goingNeeded' : 'returnNeeded';
-  const timeField = direction==='going' ? 'goingTime' : 'returnTime';
-  const availField = direction==='going' ? 'goingAvailable' : 'returnAvailable';
+// Generic single-batch multi-stop packer (no time-clustering — used by the
+// no-duty-going and all-return flows, which don't have a per-person
+// requested time to cluster by). sortFn controls who gets pulled into the
+// earliest-filled trip first within each zone.
+function packSingleBatch(passengers, availableDrivers, driverState, anchorMin, sortFn, relaxed){
+  const assignments = [];
+  const unassigned = [];
+  const byZone = {};
+  passengers.forEach(p=>{ (byZone[p.zone]=byZone[p.zone]||[]).push(p); });
+  Object.values(byZone).forEach(arr=>arr.sort(sortFn));
+  let zoneQueue = ZONES.map(z=>z.id).filter(zid=>byZone[zid]&&byZone[zid].length)
+    .map(zid=>({zoneId:zid, items:byZone[zid]}));
 
-  const passengers = passengersAll
-    .filter(p=>p[needField] && p[timeField])
-    .map(p=>({...p, _t:timeToMin(p[timeField])}));
+  while(true){
+    zoneQueue = zoneQueue.filter(zq=>zq.items.length>0);
+    if(zoneQueue.length===0) break;
+    const capExtra = relaxed?ESCALATION_EXTRA_TRIPS:0;
+    const canServeSomething = d=>d.zones.includes('any')||zoneQueue.some(zq=>d.zones.includes(zq.zoneId));
+    const candidates = availableDrivers.filter(d=>driverState[d.id].tripsUsed<(d.maxTrips+capExtra)&&canServeSomething(d));
+    if(candidates.length===0){
+      zoneQueue.forEach(zq=>zq.items.forEach(p=>unassigned.push({...p, zone:zq.zoneId})));
+      break;
+    }
+    candidates.forEach(d=>{
+      const st=driverState[d.id];
+      d._effTime = st.nextFreeTime===null?anchorMin:Math.max(anchorMin, st.nextFreeTime);
+    });
+    candidates.sort((a,b)=> a._effTime!==b._effTime ? a._effTime-b._effTime : b.capacity-a.capacity);
+    const driver = candidates[0];
+    const st = driverState[driver.id];
+    const effectiveTime = driver._effTime;
+    const canServeZone = zid=>driver.zones.includes('any')||driver.zones.includes(zid);
+    let remainingCap = driver.capacity;
+    const stops=[];
+    for(const zq of zoneQueue){
+      if(remainingCap<=0) break;
+      if(!canServeZone(zq.zoneId)) continue;
+      const take = zq.items.splice(0, remainingCap);
+      if(take.length===0) continue;
+      remainingCap -= take.length;
+      stops.push({zoneId:zq.zoneId, passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes, hasDuty:p.hasDuty, otherAddress:p.otherAddress}))});
+    }
+    assignments.push({
+      driverId:driver.id, driverName:driver.name, driverPhone:driver.phone, driverType:driver.type,
+      driverPlate:driver.plate, driverCapacity:driver.capacity, tripIndex:st.tripsUsed+1,
+      time:effectiveTime, stops
+    });
+    st.tripsUsed += 1;
+    st.nextFreeTime = effectiveTime + TURNAROUND_MIN;
+  }
+  return {assignments, unassigned};
+}
 
+// No-duty going: nobody picks a time. We simulate forward from an arbitrary
+// anchor, then shift every computed time so the LAST trip lands exactly on
+// the target (arrival time minus prep buffer). Whoever registered earliest
+// gets pulled into the simulation's first-filled trip, which — after the
+// shift — becomes the trip closest to the target (most sleep).
+function scheduleNoDutyGoing(passengers, availableDrivers, driverState, targetMin){
+  const sortFn = (a,b)=>(b.updatedAt||0)-(a.updatedAt||0);
+  const {assignments, unassigned} = packSingleBatch(passengers, availableDrivers, driverState, 0, sortFn, false);
+  if(assignments.length>0){
+    const maxTime = Math.max(...assignments.map(a=>a.time));
+    const shift = targetMin - maxTime;
+    assignments.forEach(a=>{ a.time += shift; });
+  }
+  assignments.forEach(a=>{ a.time = minToTime(a.time); a.requestedTime=minToTime(targetMin); a.delayedMin=0; a.escalated=false; });
+  unassigned.forEach(p=>{ p.requestedTime = minToTime(targetMin); });
+  return {assignments, unassigned};
+}
+
+// Return: nobody picks a time (duty or not). Fixed first trip, forward from
+// there. Whoever registered EARLIEST leaves first (trip 1); later
+// registrants land in later trips.
+function scheduleReturn(passengers, availableDrivers, driverState, startMin){
+  const sortFn = (a,b)=>(a.updatedAt||0)-(b.updatedAt||0);
+  const {assignments, unassigned} = packSingleBatch(passengers, availableDrivers, driverState, startMin, sortFn, false);
+  assignments.forEach(a=>{ a.time = minToTime(a.time); a.requestedTime=minToTime(startMin); a.delayedMin=0; a.escalated=false; });
+  unassigned.forEach(p=>{ p.requestedTime = minToTime(startMin); });
+  return {assignments, unassigned};
+}
+
+function matchDirection(passengersAll, driversAll, direction, escalate, eventSettingsForEvent){
+  const es = eventSettingsForEvent || {};
   const driverState = {};
   driversAll.forEach(d=>{ driverState[d.id]={tripsUsed:0, nextFreeTime:null}; });
-  const availableDrivers = driversAll.filter(d=>d[availField]);
+
+  if(direction==='return'){
+    const availableDrivers = driversAll.filter(d=>d.returnAvailable);
+    const passengers = passengersAll.filter(p=>p.returnNeeded);
+    const startMin = timeToMin(es.returnStartTime) ?? timeToMin(DEFAULT_RETURN_START);
+    const {assignments, unassigned} = scheduleReturn(passengers, availableDrivers, driverState, startMin);
+    assignments.forEach(a=>{ a.direction='return'; });
+    return {assignments, unassigned};
+  }
+
+  // going: duty passengers use the existing time-select + clustering flow;
+  // no-duty passengers get auto-scheduled backward from the target time.
+  const availableDrivers = driversAll.filter(d=>d.goingAvailable);
+  const dutyPassengers = passengersAll
+    .filter(p=>p.goingNeeded && p.hasDuty && p.goingTime)
+    .map(p=>({...p, _t:timeToMin(p.goingTime)}));
+  const noDutyPassengers = passengersAll.filter(p=>p.goingNeeded && !p.hasDuty);
 
   const assignments = [];
   let unassigned = [];
-
-  const batches = clusterByTime(passengers, BATCH_WINDOW_MIN);
+  const batches = clusterByTime(dutyPassengers, BATCH_WINDOW_MIN);
   packBatches(batches, availableDrivers, driverState, false, assignments, unassigned, direction);
-
   if(escalate && unassigned.length>0){
     const escList = unassigned.map(p=>({...p, _t:timeToMin(p.requestedTime)}));
     const escBatches = clusterByTime(escList, BATCH_WINDOW_MIN);
@@ -442,15 +534,28 @@ function matchDirection(passengersAll, driversAll, direction, escalate){
     unassigned = stillUnassigned;
   }
 
-  assignments.forEach(a=>{ a.direction = direction; });
-  return {assignments, unassigned};
+  // No-duty passengers share the same drivers' remaining trip *count* budget
+  // (tripsUsed carries over) but not their exact minute-by-minute
+  // availability — duty and no-duty windows are assumed not to physically
+  // clash, since duty people leave earlier by design.
+  const noDutyDriverState = {};
+  driversAll.forEach(d=>{ noDutyDriverState[d.id] = {tripsUsed: driverState[d.id].tripsUsed, nextFreeTime:null}; });
+  const arrivalMin = timeToMin(es.arrivalTime) ?? timeToMin(DEFAULT_ARRIVAL_TIME);
+  const prepBuffer = es.prepBufferMin!=null ? es.prepBufferMin : DEFAULT_PREP_BUFFER_MIN;
+  const targetMin = arrivalMin - prepBuffer;
+  const noDutyResult = scheduleNoDutyGoing(noDutyPassengers, availableDrivers, noDutyDriverState, targetMin);
+
+  const allAssignments = [...assignments, ...noDutyResult.assignments];
+  const allUnassigned = [...unassigned, ...noDutyResult.unassigned];
+  allAssignments.forEach(a=>{ a.direction = 'going'; });
+  return {assignments: allAssignments, unassigned: allUnassigned};
 }
 
-function computeSchedule(passengers, drivers, escalationTime){
-  const escalate = shouldEscalate(escalationTime);
+function computeSchedule(passengers, drivers, eventSettingsForEvent){
+  const escalate = shouldEscalate((eventSettingsForEvent||{}).escalationTime);
   return {
-    going: matchDirection(passengers, drivers, 'going', escalate),
-    ret: matchDirection(passengers, drivers, 'return', escalate),
+    going: matchDirection(passengers, drivers, 'going', escalate, eventSettingsForEvent),
+    ret: matchDirection(passengers, drivers, 'return', escalate, eventSettingsForEvent),
     escalateActive: escalate,
   };
 }
@@ -513,15 +618,30 @@ function timeOptionsHtml(times){
 function refreshTimeOptions(prefix){
   const ev = getSelectedEvent(prefix);
   const settings = getEventSettings(ev);
-  const goingSel = document.getElementById(prefix+'_goingTime');
-  const returnSel = document.getElementById(prefix+'_returnTime');
-  if(goingSel) goingSel.innerHTML = timeOptionsHtml(settings.goingTimes);
-  if(returnSel) returnSel.innerHTML = timeOptionsHtml(settings.returnTimes);
   const dest = ev ? getEventDestination(ev) : '目的地';
   const goingLbl = document.getElementById(prefix+'_goingLabel');
   const returnLbl = document.getElementById(prefix+'_returnLabel');
   if(goingLbl) goingLbl.textContent = prefix==='d' ? `去程（宿舍 → ${dest}）` : `需要去程（宿舍 → ${dest}）`;
   if(returnLbl) returnLbl.textContent = prefix==='d' ? `回程（${dest} → 宿舍）` : `需要回程（${dest} → 宿舍）`;
+  if(prefix==='p'){
+    const hasDuty = document.getElementById('p_hasDuty')?.checked || false;
+    const goingInner = document.getElementById('p_goingTimeInner');
+    if(goingInner) goingInner.innerHTML = goingTimeSectionHtml(hasDuty, settings);
+    const returnRef = document.getElementById('p_returnRefText');
+    if(returnRef) returnRef.innerHTML = returnRefTextHtml(settings);
+  }
+}
+function goingTimeSectionHtml(hasDuty, settings){
+  if(hasDuty){
+    return `<label>几时要到？</label><select id="p_goingTime">${timeOptionsHtml(settings.goingTimes)}</select>`;
+  }
+  const arrival = settings.arrivalTime || DEFAULT_ARRIVAL_TIME;
+  const buffer = settings.prepBufferMin!=null ? settings.prepBufferMin : DEFAULT_PREP_BUFFER_MIN;
+  return `<div class="hint">不用选时间，系统会自动安排——最晚会在 ${esc(arrival)} 前（提早 ${buffer} 分钟）抵达，登记的人越多，你有机会被排得越早，多点耐心。确实几点上车，请在活动前看「总表」确认。</div>`;
+}
+function returnRefTextHtml(settings){
+  const start = settings.returnStartTime || DEFAULT_RETURN_START;
+  return `<div class="hint">不用选时间，回程第一趟固定 ${esc(start)} 出发——先登记先出发，越晚登记可能要等后面几趟车。确实几点走，请在活动结束前看「总表」确认。</div>`;
 }
 function renderPassengerForm(){
   if(STATE.activeEvents.length===0){
@@ -554,18 +674,16 @@ function renderPassengerForm(){
         <input type="text" id="p_otherAddress" placeholder="请填写完整地址，方便司机找到你">
       </div>
 
-      <div class="check-row"><input type="checkbox" id="p_hasDuty"><span>这次有服事（需要提早到，会优先安排较早的车）</span></div>
+      <div class="check-row"><input type="checkbox" id="p_hasDuty" onchange="toggleDutyUI(this.checked)"><span>这次有服事（需要提早到，可以自选时间）</span></div>
 
       <div class="check-row"><input type="checkbox" id="p_goingNeeded" checked onchange="toggleField('p_goingTimeWrap',this.checked)"><span id="p_goingLabel">需要去程（宿舍 → ${esc(initialDest)}）</span></div>
       <div id="p_goingTimeWrap">
-        <label>几时要到？</label>
-        <select id="p_goingTime">${timeOptionsHtml(initialSettings.goingTimes)}</select>
+        <div id="p_goingTimeInner">${goingTimeSectionHtml(false, initialSettings)}</div>
       </div>
 
       <div class="check-row"><input type="checkbox" id="p_returnNeeded" checked onchange="toggleField('p_returnTimeWrap',this.checked)"><span id="p_returnLabel">需要回程（${esc(initialDest)} → 宿舍）</span></div>
       <div id="p_returnTimeWrap">
-        <label>几时要走？</label>
-        <select id="p_returnTime">${timeOptionsHtml(initialSettings.returnTimes)}</select>
+        <div id="p_returnRefText">${returnRefTextHtml(initialSettings)}</div>
       </div>
 
       <label>备注（选填）</label>
@@ -575,6 +693,11 @@ function renderPassengerForm(){
       <div id="p_msg"></div>
     </form>
   </div>`;
+}
+function toggleDutyUI(hasDuty){
+  const ev = getSelectedEvent('p');
+  const settings = getEventSettings(ev);
+  document.getElementById('p_goingTimeInner').innerHTML = goingTimeSectionHtml(hasDuty, settings);
 }
 function toggleField(id, show){ document.getElementById(id).style.display = show?'block':'none'; }
 function showZonePoint(id, zoneId){
@@ -602,9 +725,9 @@ async function submitPassenger(ev){
   const otherAddress = document.getElementById('p_otherAddress').value.trim();
   const hasDuty = document.getElementById('p_hasDuty').checked;
   const goingNeeded = document.getElementById('p_goingNeeded').checked;
-  const goingTime = document.getElementById('p_goingTime').value;
+  const goingTimeEl = document.getElementById('p_goingTime');
+  const goingTime = (hasDuty && goingTimeEl) ? goingTimeEl.value : '';
   const returnNeeded = document.getElementById('p_returnNeeded').checked;
-  const returnTime = document.getElementById('p_returnTime').value;
   const notes = document.getElementById('p_notes').value.trim();
   const msg = document.getElementById('p_msg');
 
@@ -612,14 +735,13 @@ async function submitPassenger(ev){
   if(!zone){ msg.innerHTML = '<div class="banner banner-alert">请选择宿舍集合区</div>'; return false; }
   if(zone==='z6' && !otherAddress){ msg.innerHTML = '<div class="banner banner-alert">请填写详细地址</div>'; return false; }
   if(!goingNeeded && !returnNeeded){ msg.innerHTML = '<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
-  if(goingNeeded && !goingTime){ msg.innerHTML = '<div class="banner banner-alert">请选择去程时间（如果没有选项，请联系同工设定）</div>'; return false; }
-  if(returnNeeded && !returnTime){ msg.innerHTML = '<div class="banner banner-alert">请选择回程时间（如果没有选项，请联系同工设定）</div>'; return false; }
+  if(goingNeeded && hasDuty && !goingTime){ msg.innerHTML = '<div class="banner banner-alert">请选择去程时间（如果没有选项，请联系同工设定）</div>'; return false; }
 
   const existed = STATE.passengers.some(p=>p.event===event_ && p.phone===phone);
   const record = {
     event: event_, name, phone, zone, otherAddress: zone==='z6'?otherAddress:'', hasDuty,
-    goingNeeded, goingTime: goingNeeded?goingTime:'',
-    returnNeeded, returnTime: returnNeeded?returnTime:'',
+    goingNeeded, goingTime: (goingNeeded && hasDuty) ? goingTime : '',
+    returnNeeded,
     notes, updatedAt: Date.now()
   };
   const docId = safeId(event_)+'__'+safeId(phone);
@@ -779,7 +901,7 @@ function renderSchedule(){
   const passengers = STATE.passengers.filter(p=>p.event===sel && !p.hidden);
   const drivers = STATE.drivers.filter(d=>d.event===sel && !d.hidden);
   const settings = getEventSettings(sel);
-  const sched = computeSchedule(passengers, drivers, settings.escalationTime);
+  const sched = computeSchedule(passengers, drivers, settings);
 
   const goingNeed = passengers.filter(p=>p.goingNeeded).length;
   const returnNeed = passengers.filter(p=>p.returnNeeded).length;
@@ -972,9 +1094,9 @@ function renderAdmin(){
   </div>
 
   <div class="card">
-    <h2><span class="badge">🕐</span> 去程时间选项 — ${esc(sel)}</h2>
-    <div class="hint">乘客登记去程时，只能从下面这些时间里选，不能自己打字乱填。</div>
-    ${(settings.goingTimes||[]).length===0 ? '<div class="empty">还没有设定，乘客暂时无法登记去程</div>' : (settings.goingTimes).map(t=>`
+    <h2><span class="badge">🕐</span> 服事人员去程时间 — ${esc(sel)}</h2>
+    <div class="hint">只给勾选「这次有服事」的乘客选，不需要提早到的人不会看到这个，是系统自动安排。</div>
+    ${(settings.goingTimes||[]).length===0 ? '<div class="empty">还没有设定</div>' : (settings.goingTimes).map(t=>`
       <div class="list-row"><div>${esc(t)}</div><button class="btn btn-ghost" onclick="removeTimeOption('going', decodeURIComponent('${encodeURIComponent(t)}'))">移除</button></div>
     `).join('')}
     <label>加入新时间</label>
@@ -984,15 +1106,24 @@ function renderAdmin(){
   </div>
 
   <div class="card">
-    <h2><span class="badge">🕐</span> 回程时间选项 — ${esc(sel)}</h2>
-    <div class="hint">乘客登记回程时，只能从下面这些时间里选，不能自己打字乱填。</div>
-    ${(settings.returnTimes||[]).length===0 ? '<div class="empty">还没有设定，乘客暂时无法登记回程</div>' : (settings.returnTimes).map(t=>`
-      <div class="list-row"><div>${esc(t)}</div><button class="btn btn-ghost" onclick="removeTimeOption('return', decodeURIComponent('${encodeURIComponent(t)}'))">移除</button></div>
-    `).join('')}
-    <label>加入新时间</label>
-    <input type="time" id="admin_new_returntime">
-    <button class="btn btn-secondary" onclick="addTimeOption('return')">加入</button>
-    <div id="admin_returntime_msg"></div>
+    <h2><span class="badge">🕐</span> 没有服事的去程 — ${esc(sel)}</h2>
+    <div class="hint">这些人不用选时间，系统自动倒推安排——人越多排得越早，最后一趟精准落在「准备时间」。</div>
+    <label>活动开始时间（到的时间）</label>
+    <input type="time" id="admin_arrivalTime" value="${esc(settings.arrivalTime||DEFAULT_ARRIVAL_TIME)}">
+    <label>要提早几分钟到（准备时间）</label>
+    <input type="number" id="admin_prepBuffer" min="0" value="${settings.prepBufferMin!=null?settings.prepBufferMin:DEFAULT_PREP_BUFFER_MIN}">
+    <div class="hint">例如活动 8:00 开始、提早 10 分钟，最后一趟车会精准安排在 7:50 抵达。</div>
+    <button class="btn btn-secondary" onclick="adminSaveGoingSchedule()">保存</button>
+    <div id="admin_going_sched_msg"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="badge">🕐</span> 回程设置 — ${esc(sel)}</h2>
+    <div class="hint">所有人（不分有没有服事）都不用选回程时间，固定第一趟出发，先登记先出发。</div>
+    <label>第一趟出发时间</label>
+    <input type="time" id="admin_returnStart" value="${esc(settings.returnStartTime||DEFAULT_RETURN_START)}">
+    <button class="btn btn-secondary" onclick="adminSaveReturnStart()">保存</button>
+    <div id="admin_return_start_msg"></div>
   </div>` : ''}
 
   <div class="card">
@@ -1078,6 +1209,31 @@ async function adminSaveDestination(){
   }catch(e){
     console.error(e);
     document.getElementById('admin_dest_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
+  }
+}
+async function adminSaveGoingSchedule(){
+  const arrivalTime = document.getElementById('admin_arrivalTime').value;
+  const prepBufferMin = parseInt(document.getElementById('admin_prepBuffer').value,10) || 0;
+  const ev = STATE.adminEvent;
+  const newSettings = {...STATE.eventSettings, [ev]: {...(STATE.eventSettings[ev]||{}), arrivalTime, prepBufferMin}};
+  try{
+    await setDoc(doc(db,'settings','app'), {activeEvents: STATE.activeEvents, eventSettings: newSettings}, {merge:true});
+    document.getElementById('admin_going_sched_msg').innerHTML = '<div class="banner banner-ok">已保存 ✓</div>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('admin_going_sched_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
+  }
+}
+async function adminSaveReturnStart(){
+  const returnStartTime = document.getElementById('admin_returnStart').value;
+  const ev = STATE.adminEvent;
+  const newSettings = {...STATE.eventSettings, [ev]: {...(STATE.eventSettings[ev]||{}), returnStartTime}};
+  try{
+    await setDoc(doc(db,'settings','app'), {activeEvents: STATE.activeEvents, eventSettings: newSettings}, {merge:true});
+    document.getElementById('admin_return_start_msg').innerHTML = '<div class="banner banner-ok">已保存 ✓</div>';
+  }catch(e){
+    console.error(e);
+    document.getElementById('admin_return_start_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
   }
 }
 async function adminSaveEscalation(){
@@ -1189,7 +1345,8 @@ Object.assign(window, {
   submitDriver, manualRefresh, addEvent, closeEvent, adminSaveEscalation, adminSaveDestination,
   deleteRecord, clearEventData, exportBackup, copyBackup, unlockAdmin,
   refreshTimeOptions, addTimeOption, removeTimeOption,
-  toggleDriverType, onVanPlateChange, toggleOtherAddress,
+  toggleDriverType, onVanPlateChange, toggleOtherAddress, toggleDutyUI,
+  adminSaveGoingSchedule, adminSaveReturnStart,
 });
 </script>
 </body>
