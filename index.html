@@ -140,7 +140,13 @@
   .trip-zone{font-size:13px;font-weight:700;margin-top:2px;}
   .trip-point{font-size:11.5px;color:var(--ink-muted);}
   .trip-badge{background:var(--amber-pale);color:#8A5A16;font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;white-space:nowrap;}
-  .trip-driver{font-size:12.5px;color:var(--ink-muted);margin-top:8px;display:flex;justify-content:space-between;align-items:center;}
+  .trip-driver{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .trip-driver-name{font-size:14.5px;font-weight:800;color:var(--ink);}
+  .trip-driver-meta{font-size:12px;color:var(--ink-muted);margin-top:2px;}
+  .trip-driver-call{color:var(--teal-dark);font-weight:700;text-decoration:none;font-size:12.5px;background:var(--teal-pale);padding:7px 13px;border-radius:999px;white-space:nowrap;}
+  .stop-badge{width:22px;height:22px;border-radius:50%;background:var(--amber-pale);color:#8A5A16;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex:none;}
+  .stop-time{font-size:13px;font-weight:800;color:var(--teal-dark);}
+  .eta-line{margin-top:12px;padding-top:10px;border-top:1px dashed var(--border);font-size:12px;color:var(--ink-muted);text-align:center;}
   .pax-list{margin-top:10px;border-top:1px dashed var(--border);padding-top:8px;}
   .pax-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;font-size:13px;}
   .pax-row a{color:var(--teal-dark);text-decoration:none;font-size:11.5px;font-weight:700;}
@@ -182,13 +188,24 @@ const db = getFirestore(fbApp);
 
 /* ================= CONFIG ================= */
 const ZONES = [
-  {id:'z1', label:'Dahlia／Sakura／Allamanda', point:'集合点：Dahlia Busstop', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Dahlia Busstop')},
-  {id:'z2', label:'Cempaka／BRC／TAZ', point:'集合点：Cempaka Office 前', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Cempaka Office')},
-  {id:'z3', label:'Rafflesia', point:'集合点：另行安排（请见备注或询问同工）', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Rafflesia College')},
-  {id:'z4', label:'UJ', point:'集合点：Roundabout（靠近 Cempaka）', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS roundabout near Cempaka')},
-  {id:'z5', label:'DM', point:'集合点：DM 楼下', mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS DM College')},
-  {id:'z6', label:'其他／特殊安排', point:'请在备注注明详细地点', mapLink:''},
+  {id:'z1', label:'Dahlia／Sakura／Allamanda', point:'集合点：Dahlia Busstop', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Dahlia Busstop')},
+  {id:'z2', label:'Cempaka／BRC／TAZ', point:'集合点：Cempaka Office 前', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Cempaka Office')},
+  {id:'z3', label:'Rafflesia', point:'集合点：另行安排（请见备注或询问同工）', driveMinFromChurch:20, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Rafflesia College')},
+  {id:'z4', label:'UJ', point:'集合点：Roundabout（靠近 Cempaka）', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS roundabout near Cempaka')},
+  {id:'z5', label:"DM（D'Milenia Samarahan）", point:"集合点：D'Milenia 楼下", driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent("D'Milenia Samarahan")},
+  {id:'z6', label:'其他／特殊安排', point:'请在备注注明详细地点', driveMinFromChurch:10, mapLink:''},
 ];
+// Rough drive-time model: z1/z2/z4/z5 sit close together on campus (a couple
+// of minutes apart by road); z3/z6 are treated as a separate, farther stop.
+// These are straight-line-distance estimates, not real routing — nudge the
+// numbers above (driveMinFromChurch) or these constants if they're off.
+const NEARBY_CLUSTER = ['z1','z2','z4','z5'];
+const NEARBY_HOP_MIN = 5;
+const FAR_HOP_MIN = 15;
+function hopMinutes(zoneIdA, zoneIdB){
+  const bothNearby = NEARBY_CLUSTER.includes(zoneIdA) && NEARBY_CLUSTER.includes(zoneIdB);
+  return bothNearby ? NEARBY_HOP_MIN : FAR_HOP_MIN;
+}
 const TURNAROUND_MIN = 30;
 const BATCH_WINDOW_MIN = 15;
 const ESCALATION_EXTRA_TRIPS = 2;
@@ -276,74 +293,77 @@ function shouldEscalate(escalationTimeStr){
 
 /* ================= MATCHING ALGORITHM ================= */
 function clusterByTime(list, windowMin){
+  const sorted = [...list].sort((a,b)=>a._t-b._t);
   const batches=[]; let current=null;
-  list.forEach(p=>{
+  sorted.forEach(p=>{
     if(current===null || p._t-current.startTime>windowMin){ current={startTime:p._t, items:[p]}; batches.push(current); }
     else current.items.push(p);
   });
   return batches;
 }
 
-function assignBatchList(batches, availableDrivers, driverState, relaxed, assignments, unassignedOut){
+// Packs each time-batch into as few trips as possible: a single trip can pick
+// up from several zones (a "milk run") as long as one driver's capacity and
+// zone coverage allow it. Always computed fresh from current data — never
+// reuses a previous layout.
+function packBatches(batches, availableDrivers, driverState, relaxed, assignments, unassignedOut){
   batches.forEach(batch=>{
-    const zoneId = batch.zoneId;
-    let remaining = [...batch.items];
     const batchTime = batch.startTime;
+    const byZone = {};
+    batch.items.forEach(p=>{ (byZone[p.zone] = byZone[p.zone]||[]).push(p); });
+    let zoneQueue = ZONES.map(z=>z.id).filter(zid=>byZone[zid]&&byZone[zid].length)
+      .map(zid=>({zoneId:zid, items:byZone[zid]}));
 
-    while(remaining.length>0){
-      let candidates = availableDrivers.filter(d=>{
-        const st = driverState[d.id];
-        const zoneOk = relaxed ? true : (d.zones.includes('any') || d.zones.includes(zoneId));
-        const capExtra = relaxed ? ESCALATION_EXTRA_TRIPS : 0;
-        const tripsOk = st.tripsUsed < (d.maxTrips + capExtra);
-        return zoneOk && tripsOk;
-      });
+    while(true){
+      zoneQueue = zoneQueue.filter(zq=>zq.items.length>0);
+      if(zoneQueue.length===0) break;
+
+      const capExtra = relaxed ? ESCALATION_EXTRA_TRIPS : 0;
+      const canServeSomething = d => d.zones.includes('any') || zoneQueue.some(zq=>d.zones.includes(zq.zoneId));
+      const candidates = availableDrivers.filter(d=>
+        driverState[d.id].tripsUsed < (d.maxTrips + capExtra) && canServeSomething(d)
+      );
+
       if(candidates.length===0){
-        remaining.forEach(p=>unassignedOut.push({...p, zone:zoneId, requestedTime:minToTime(batchTime)}));
-        remaining=[];
+        zoneQueue.forEach(zq=>zq.items.forEach(p=>unassignedOut.push({...p, zone:zq.zoneId, requestedTime:minToTime(batchTime)})));
         break;
       }
+
       candidates.forEach(d=>{
         const st=driverState[d.id];
         d._effTime = st.nextFreeTime===null ? batchTime : Math.max(batchTime, st.nextFreeTime);
       });
       candidates.sort((a,b)=>{
         if(a._effTime!==b._effTime) return a._effTime-b._effTime;
-        const capDiff = b.capacity-a.capacity;
-        if(capDiff!==0) return capDiff;
-        return driverState[a.id].tripsUsed - driverState[b.id].tripsUsed;
+        return b.capacity-a.capacity;
       });
       const driver = candidates[0];
       const st = driverState[driver.id];
       const effectiveTime = driver._effTime;
-      const take = remaining.splice(0, driver.capacity);
+      const canServeZone = zid => driver.zones.includes('any') || driver.zones.includes(zid);
+
+      let remainingCap = driver.capacity;
+      const stops = [];
+      for(const zq of zoneQueue){
+        if(remainingCap<=0) break;
+        if(!canServeZone(zq.zoneId)) continue;
+        const take = zq.items.splice(0, remainingCap);
+        if(take.length===0) continue;
+        remainingCap -= take.length;
+        stops.push({zoneId:zq.zoneId, passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes}))});
+      }
 
       assignments.push({
         driverId:driver.id, driverName:driver.name, driverPhone:driver.phone, driverType:driver.type,
-        driverCapacity:driver.capacity,
-        zoneId, direction: undefined, tripIndex: st.tripsUsed+1,
+        driverPlate:driver.plate, driverCapacity:driver.capacity, tripIndex: st.tripsUsed+1,
         time: minToTime(effectiveTime), requestedTime: minToTime(batchTime),
-        delayedMin: effectiveTime-batchTime,
-        escalated: relaxed,
-        passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes}))
+        delayedMin: effectiveTime-batchTime, escalated: relaxed,
+        stops
       });
       st.tripsUsed += 1;
       st.nextFreeTime = effectiveTime + TURNAROUND_MIN;
     }
   });
-}
-
-function buildBatchesByZone(list){
-  const byZone = {};
-  list.forEach(p=>{ (byZone[p.zone] = byZone[p.zone]||[]).push(p); });
-  let allBatches = [];
-  ZONES.forEach(zone=>{
-    const zl = byZone[zone.id] || [];
-    if(zl.length===0) return;
-    clusterByTime(zl, BATCH_WINDOW_MIN).forEach(b=>allBatches.push({zoneId:zone.id, startTime:b.startTime, items:b.items}));
-  });
-  allBatches.sort((a,b)=>a.startTime-b.startTime);
-  return allBatches;
 }
 
 function matchDirection(passengersAll, driversAll, direction, escalate){
@@ -353,8 +373,7 @@ function matchDirection(passengersAll, driversAll, direction, escalate){
 
   const passengers = passengersAll
     .filter(p=>p[needField] && p[timeField])
-    .map(p=>({...p, _t:timeToMin(p[timeField])}))
-    .sort((a,b)=>a._t-b._t);
+    .map(p=>({...p, _t:timeToMin(p[timeField])}));
 
   const driverState = {};
   driversAll.forEach(d=>{ driverState[d.id]={tripsUsed:0, nextFreeTime:null}; });
@@ -363,14 +382,14 @@ function matchDirection(passengersAll, driversAll, direction, escalate){
   const assignments = [];
   let unassigned = [];
 
-  const allBatches = buildBatchesByZone(passengers);
-  assignBatchList(allBatches, availableDrivers, driverState, false, assignments, unassigned);
+  const batches = clusterByTime(passengers, BATCH_WINDOW_MIN);
+  packBatches(batches, availableDrivers, driverState, false, assignments, unassigned);
 
   if(escalate && unassigned.length>0){
     const escList = unassigned.map(p=>({...p, _t:timeToMin(p.requestedTime)}));
-    const escBatches = buildBatchesByZone(escList);
+    const escBatches = clusterByTime(escList, BATCH_WINDOW_MIN);
     const stillUnassigned = [];
-    assignBatchList(escBatches, availableDrivers, driverState, true, assignments, stillUnassigned);
+    packBatches(escBatches, availableDrivers, driverState, true, assignments, stillUnassigned);
     unassigned = stillUnassigned;
   }
 
@@ -555,6 +574,10 @@ function renderDriverForm(){
       <label>电话（WhatsApp）</label>
       <input type="tel" id="d_phone" required placeholder="012-3456789">
 
+      <label>车牌号码</label>
+      <input type="text" id="d_plate" required placeholder="例如：QAA 1234">
+      <div class="hint">方便同工和乘客在总表上认出是哪辆车</div>
+
       <label>身份</label>
       <select id="d_type">
         <option value="van">教会福音车</option>
@@ -594,6 +617,7 @@ async function submitDriver(ev){
   const event_ = getSelectedEvent('d');
   const name = document.getElementById('d_name').value.trim();
   const phone = document.getElementById('d_phone').value.trim();
+  const plate = document.getElementById('d_plate').value.trim().toUpperCase();
   const type = document.getElementById('d_type').value;
   const capacity = parseInt(document.getElementById('d_capacity').value,10);
   const maxTrips = parseInt(document.getElementById('d_maxTrips').value,10);
@@ -612,7 +636,7 @@ async function submitDriver(ev){
 
   const existed = STATE.drivers.some(d=>d.event===event_ && d.phone===phone);
   const record = {
-    event: event_, name, phone, type, capacity, maxTrips,
+    event: event_, name, phone, plate, type, capacity, maxTrips,
     goingAvailable, returnAvailable, zones, updatedAt: Date.now()
   };
   const docId = safeId(event_)+'__'+safeId(phone);
@@ -681,32 +705,64 @@ function renderDirectionBlock(title, result){
   }
   assignments.sort((a,b)=> (a.time>b.time?1:-1));
   assignments.forEach(a=>{
-    const zone = zoneById(a.zoneId);
+    const totalPax = a.stops.reduce((s,st)=>s+st.passengers.length,0);
     const delayTag = a.delayedMin>0 ? `<span class="delayed">（比要求晚 ${a.delayedMin} 分钟）</span>` : '';
     const badgeStyle = a.escalated ? 'background:var(--alert-pale);color:var(--alert);' : '';
-    const badgeText = a.escalated ? `⚡加派 · 第${a.tripIndex}趟 · ${a.passengers.length}/${a.driverCapacity}人` : `第${a.tripIndex}趟 · ${a.passengers.length}/${a.driverCapacity}人`;
-    const mapTag = zone && zone.mapLink ? ` · <a href="${zone.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;text-decoration:none;">📍地图</a>` : '';
+    const badgeText = a.escalated ? `⚡加派 · 第${a.tripIndex}趟 · ${totalPax}/${a.driverCapacity}人` : `第${a.tripIndex}趟 · ${totalPax}/${a.driverCapacity}人`;
+
+    // walk the stops in order, estimating each one's arrival time from the
+    // previous stop's time plus the estimated drive time between them
+    let runningMin = timeToMin(a.time);
+    const timedStops = a.stops.map((s, idx)=>{
+      if(idx>0) runningMin += hopMinutes(a.stops[idx-1].zoneId, s.zoneId);
+      return {...s, estTime: minToTime(runningMin)};
+    });
+
+    const stopsHtml = timedStops.map((s,idx)=>{
+      const zone = zoneById(s.zoneId);
+      const mapTag = zone && zone.mapLink ? ` · <a href="${zone.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;text-decoration:none;">📍地图</a>` : '';
+      return `
+      <div style="margin-top:${idx===0?'0':'14px'};padding-top:${idx===0?'0':'14px'};${idx>0?'border-top:1px dashed var(--border);':''}">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="stop-badge">${idx+1}</span>
+          <div style="flex:1;">
+            <div class="trip-zone">${esc(zone?zone.label:s.zoneId)}（${s.passengers.length}人）</div>
+            <div class="trip-point"><span class="stop-time">${s.estTime}</span> 预计到达 · ${esc(zone?zone.point:'')}${mapTag}</div>
+          </div>
+        </div>
+        <div class="pax-list">
+          ${s.passengers.map((p,i)=>`
+            <div class="pax-row">
+              <span>${i+1}. ${esc(p.name)}</span>
+              <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    }).join('');
+
+    let etaLine = '';
+    if(a.direction==='going' && timedStops.length>0){
+      const lastStop = timedStops[timedStops.length-1];
+      const lastZoneConf = zoneById(lastStop.zoneId);
+      const arriveMin = timeToMin(lastStop.estTime) + (lastZoneConf?.driveMinFromChurch ?? NEARBY_HOP_MIN);
+      etaLine = `<div class="eta-line">🏁 预计 ${minToTime(arriveMin)} 抵达教会</div>`;
+    }
+
     html += `
     <div class="trip-card">
       <div class="trip-top">
-        <div>
-          <div class="trip-time">${a.time} ${delayTag}</div>
-          <div class="trip-zone">${esc(zone?zone.label:a.zoneId)}</div>
-          <div class="trip-point">${esc(zone?zone.point:'')}${mapTag}</div>
-        </div>
+        <div class="trip-time">${a.time} ${delayTag}</div>
         <div class="trip-badge" style="${badgeStyle}">${badgeText}</div>
       </div>
       <div class="trip-driver">
-        <span>🚗 ${esc(a.driverName)}（${a.driverType==='van'?'福音车':'私家车'}）</span>
-        <a href="${telHref(a.driverPhone)}">${esc(a.driverPhone)}</a>
+        <div>
+          <div class="trip-driver-name">🚗 司机：${esc(a.driverName)}</div>
+          <div class="trip-driver-meta">${a.driverType==='van'?'福音车':'私家车'} · 车牌 ${esc(a.driverPlate||'未填')}</div>
+        </div>
+        <a class="trip-driver-call" href="${telHref(a.driverPhone)}">${esc(a.driverPhone)}</a>
       </div>
-      <div class="pax-list">
-        ${a.passengers.map(p=>`
-          <div class="pax-row">
-            <span>${esc(p.name)}</span>
-            <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a>
-          </div>`).join('')}
-      </div>
+      ${stopsHtml}
+      ${etaLine}
     </div>`;
   });
   if(unassigned.length>0){
@@ -797,7 +853,7 @@ function renderAdmin(){
     ${drivers.length===0 ? '<div class="empty">没有资料</div>' : drivers.map(d=>`
       <div class="list-row">
         <div>
-          <div>${esc(d.name)} · ${d.type==='van'?'福音车':'私家车'} · ${d.capacity}位 x${d.maxTrips}趟</div>
+          <div>${esc(d.name)}（${esc(d.plate||'未填车牌')}） · ${d.type==='van'?'福音车':'私家车'} · ${d.capacity}位 x${d.maxTrips}趟</div>
           <div class="meta">${d.zones.includes('any')?'不限区域':d.zones.map(z=>zoneById(z)?.label||z).join('、')}</div>
         </div>
         <button class="btn btn-ghost" onclick="deleteRecord('driver','${d.id}')">删除</button>
