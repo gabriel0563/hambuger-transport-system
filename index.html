@@ -326,11 +326,23 @@ function clusterByTime(list, windowMin){
 // up from several zones (a "milk run") as long as one driver's capacity and
 // zone coverage allow it. Always computed fresh from current data — never
 // reuses a previous layout.
-function packBatches(batches, availableDrivers, driverState, relaxed, assignments, unassignedOut){
+function packBatches(batches, availableDrivers, driverState, relaxed, assignments, unassignedOut, direction){
   batches.forEach(batch=>{
     const batchTime = batch.startTime;
     const byZone = {};
     batch.items.forEach(p=>{ (byZone[p.zone] = byZone[p.zone]||[]).push(p); });
+    // Sort each zone's queue: people with duty (服事) go first — they need
+    // to arrive early to prepare — only for the going direction. Within the
+    // same duty status, whoever registered LAST gets pulled in first (gets
+    // the earlier trip); registering early is rewarded with a later, more-
+    // sleep pickup once a zone needs more than one trip.
+    Object.values(byZone).forEach(arr=>arr.sort((a,b)=>{
+      if(direction==='going'){
+        const dutyDiff = (b.hasDuty?1:0) - (a.hasDuty?1:0);
+        if(dutyDiff!==0) return dutyDiff;
+      }
+      return (b.updatedAt||0)-(a.updatedAt||0);
+    }));
     let zoneQueue = ZONES.map(z=>z.id).filter(zid=>byZone[zid]&&byZone[zid].length)
       .map(zid=>({zoneId:zid, items:byZone[zid]}));
 
@@ -370,7 +382,7 @@ function packBatches(batches, availableDrivers, driverState, relaxed, assignment
         const take = zq.items.splice(0, remainingCap);
         if(take.length===0) continue;
         remainingCap -= take.length;
-        stops.push({zoneId:zq.zoneId, passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes}))});
+        stops.push({zoneId:zq.zoneId, passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes, hasDuty:p.hasDuty}))});
       }
 
       assignments.push({
@@ -403,13 +415,13 @@ function matchDirection(passengersAll, driversAll, direction, escalate){
   let unassigned = [];
 
   const batches = clusterByTime(passengers, BATCH_WINDOW_MIN);
-  packBatches(batches, availableDrivers, driverState, false, assignments, unassigned);
+  packBatches(batches, availableDrivers, driverState, false, assignments, unassigned, direction);
 
   if(escalate && unassigned.length>0){
     const escList = unassigned.map(p=>({...p, _t:timeToMin(p.requestedTime)}));
     const escBatches = clusterByTime(escList, BATCH_WINDOW_MIN);
     const stillUnassigned = [];
-    packBatches(escBatches, availableDrivers, driverState, true, assignments, stillUnassigned);
+    packBatches(escBatches, availableDrivers, driverState, true, assignments, stillUnassigned, direction);
     unassigned = stillUnassigned;
   }
 
@@ -475,13 +487,26 @@ function eventFieldHtml(prefix){
     return `<div class="banner banner-ok" style="margin-top:0;">${esc(ev)}</div>`;
   }
   const opts = STATE.activeEvents.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('');
-  return `<select id="${prefix}_event" required><option value="">请选择活动</option>${opts}</select>`;
+  return `<select id="${prefix}_event" required onchange="refreshTimeOptions('${prefix}')"><option value="">请选择活动</option>${opts}</select>`;
+}
+function timeOptionsHtml(times){
+  if(!times || times.length===0) return '<option value="">同工尚未设定时间</option>';
+  return times.map(t=>`<option value="${t}">${t}</option>`).join('');
+}
+function refreshTimeOptions(prefix){
+  const ev = getSelectedEvent(prefix);
+  const settings = getEventSettings(ev);
+  const goingSel = document.getElementById(prefix+'_goingTime');
+  const returnSel = document.getElementById(prefix+'_returnTime');
+  if(goingSel) goingSel.innerHTML = timeOptionsHtml(settings.goingTimes);
+  if(returnSel) returnSel.innerHTML = timeOptionsHtml(settings.returnTimes);
 }
 function renderPassengerForm(){
   if(STATE.activeEvents.length===0){
     return `<div class="card"><div class="empty">同工还没开放任何活动报名，请稍后再试，或联系同工。</div></div>`;
   }
   const zoneOpts = ZONES.map(z=>`<option value="${z.id}">${esc(z.label)}</option>`).join('');
+  const initialSettings = STATE.activeEvents.length===1 ? getEventSettings(STATE.activeEvents[0]) : {};
   return `
   <div class="card">
     <h2><span class="badge">1</span> 乘客登记</h2>
@@ -502,16 +527,18 @@ function renderPassengerForm(){
       </select>
       <div class="zone-point" id="p_zone_point"></div>
 
+      <div class="check-row"><input type="checkbox" id="p_hasDuty"><span>这次有服事（需要提早到，会优先安排较早的车）</span></div>
+
       <div class="check-row"><input type="checkbox" id="p_goingNeeded" checked onchange="toggleField('p_goingTimeWrap',this.checked)"><span>需要去程（宿舍 → 教会）</span></div>
       <div id="p_goingTimeWrap">
         <label>几时要到？</label>
-        <input type="time" id="p_goingTime" value="07:45">
+        <select id="p_goingTime">${timeOptionsHtml(initialSettings.goingTimes)}</select>
       </div>
 
       <div class="check-row"><input type="checkbox" id="p_returnNeeded" checked onchange="toggleField('p_returnTimeWrap',this.checked)"><span>需要回程（教会 → 宿舍）</span></div>
       <div id="p_returnTimeWrap">
         <label>几时要走？</label>
-        <input type="time" id="p_returnTime" value="12:30">
+        <select id="p_returnTime">${timeOptionsHtml(initialSettings.returnTimes)}</select>
       </div>
 
       <label>备注（选填）</label>
@@ -542,6 +569,7 @@ async function submitPassenger(ev){
   const name = document.getElementById('p_name').value.trim();
   const phone = document.getElementById('p_phone').value.trim();
   const zone = document.getElementById('p_zone').value;
+  const hasDuty = document.getElementById('p_hasDuty').checked;
   const goingNeeded = document.getElementById('p_goingNeeded').checked;
   const goingTime = document.getElementById('p_goingTime').value;
   const returnNeeded = document.getElementById('p_returnNeeded').checked;
@@ -552,10 +580,12 @@ async function submitPassenger(ev){
   if(!event_){ msg.innerHTML = '<div class="banner banner-alert">请选择活动</div>'; return false; }
   if(!zone){ msg.innerHTML = '<div class="banner banner-alert">请选择宿舍集合区</div>'; return false; }
   if(!goingNeeded && !returnNeeded){ msg.innerHTML = '<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
+  if(goingNeeded && !goingTime){ msg.innerHTML = '<div class="banner banner-alert">请选择去程时间（如果没有选项，请联系同工设定）</div>'; return false; }
+  if(returnNeeded && !returnTime){ msg.innerHTML = '<div class="banner banner-alert">请选择回程时间（如果没有选项，请联系同工设定）</div>'; return false; }
 
   const existed = STATE.passengers.some(p=>p.event===event_ && p.phone===phone);
   const record = {
-    event: event_, name, phone, zone,
+    event: event_, name, phone, zone, hasDuty,
     goingNeeded, goingTime: goingNeeded?goingTime:'',
     returnNeeded, returnTime: returnNeeded?returnTime:'',
     notes, updatedAt: Date.now()
@@ -755,7 +785,7 @@ function renderDirectionBlock(title, result){
         <div class="pax-list">
           ${s.passengers.map((p,i)=>`
             <div class="pax-row">
-              <span>${i+1}. ${esc(p.name)}</span>
+              <span>${i+1}. ${esc(p.name)}${p.hasDuty?' <span class="type-badge" style="margin-left:4px;">服事</span>':''}</span>
               <a href="${waHref(p.phone)}" target="_blank">WhatsApp ›</a>
             </div>`).join('')}
         </div>
@@ -854,6 +884,30 @@ function renderAdmin(){
     <div class="hint">过了这个时间，如果还有人没车，系统会自动请已登记的司机多跑一趟（不受他们原本选的区域限制），最多再加 ${ESCALATION_EXTRA_TRIPS} 趟。不设置的话，系统不会自动加派，未安排的人会一直显示在「需要同工手动安排」，要靠同工自己联系多找车。</div>
     <button class="btn btn-secondary" onclick="adminSaveEscalation()">保存加派设置</button>
     <div id="admin_esc_msg"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="badge">🕐</span> 去程时间选项 — ${esc(sel)}</h2>
+    <div class="hint">乘客登记去程时，只能从下面这些时间里选，不能自己打字乱填。</div>
+    ${(settings.goingTimes||[]).length===0 ? '<div class="empty">还没有设定，乘客暂时无法登记去程</div>' : (settings.goingTimes).map(t=>`
+      <div class="list-row"><div>${esc(t)}</div><button class="btn btn-ghost" onclick="removeTimeOption('going', decodeURIComponent('${encodeURIComponent(t)}'))">移除</button></div>
+    `).join('')}
+    <label>加入新时间</label>
+    <input type="time" id="admin_new_goingtime">
+    <button class="btn btn-secondary" onclick="addTimeOption('going')">加入</button>
+    <div id="admin_goingtime_msg"></div>
+  </div>
+
+  <div class="card">
+    <h2><span class="badge">🕐</span> 回程时间选项 — ${esc(sel)}</h2>
+    <div class="hint">乘客登记回程时，只能从下面这些时间里选，不能自己打字乱填。</div>
+    ${(settings.returnTimes||[]).length===0 ? '<div class="empty">还没有设定，乘客暂时无法登记回程</div>' : (settings.returnTimes).map(t=>`
+      <div class="list-row"><div>${esc(t)}</div><button class="btn btn-ghost" onclick="removeTimeOption('return', decodeURIComponent('${encodeURIComponent(t)}'))">移除</button></div>
+    `).join('')}
+    <label>加入新时间</label>
+    <input type="time" id="admin_new_returntime">
+    <button class="btn btn-secondary" onclick="addTimeOption('return')">加入</button>
+    <div id="admin_returntime_msg"></div>
   </div>` : ''}
 
   <div class="card">
@@ -942,6 +996,39 @@ async function adminSaveEscalation(){
     document.getElementById('admin_esc_msg').innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
   }
 }
+async function addTimeOption(direction){
+  const inputId = direction==='going' ? 'admin_new_goingtime' : 'admin_new_returntime';
+  const msgId = direction==='going' ? 'admin_goingtime_msg' : 'admin_returntime_msg';
+  const key = direction==='going' ? 'goingTimes' : 'returnTimes';
+  const val = document.getElementById(inputId).value;
+  const msg = document.getElementById(msgId);
+  if(!val){ msg.innerHTML = '<div class="banner banner-alert">请选择时间</div>'; return; }
+  const ev = STATE.adminEvent;
+  const current = getEventSettings(ev)[key] || [];
+  if(current.includes(val)){ msg.innerHTML = '<div class="banner banner-alert">这个时间已经在列表里了</div>'; return; }
+  const updated = [...current, val].sort();
+  const newSettings = {...STATE.eventSettings, [ev]: {...(STATE.eventSettings[ev]||{}), [key]: updated}};
+  try{
+    await setDoc(doc(db,'settings','app'), {activeEvents: STATE.activeEvents, eventSettings: newSettings}, {merge:true});
+    msg.innerHTML = '<div class="banner banner-ok">已加入 ✓</div>';
+  }catch(e){
+    console.error(e);
+    msg.innerHTML = '<div class="banner banner-alert">保存失败，请重试</div>';
+  }
+}
+async function removeTimeOption(direction, time){
+  const key = direction==='going' ? 'goingTimes' : 'returnTimes';
+  const ev = STATE.adminEvent;
+  const current = getEventSettings(ev)[key] || [];
+  const updated = current.filter(t=>t!==time);
+  const newSettings = {...STATE.eventSettings, [ev]: {...(STATE.eventSettings[ev]||{}), [key]: updated}};
+  try{
+    await setDoc(doc(db,'settings','app'), {activeEvents: STATE.activeEvents, eventSettings: newSettings}, {merge:true});
+  }catch(e){
+    console.error(e);
+    alert('操作失败，请重试');
+  }
+}
 async function deleteRecord(kind, id){
   try{
     await setDoc(doc(db, kind==='passenger'?'passengers':'drivers', id), {hidden:true}, {merge:true});
@@ -1005,6 +1092,7 @@ Object.assign(window, {
   switchTab, showZonePoint, toggleField, submitPassenger, toggleZoneChips,
   submitDriver, manualRefresh, addEvent, closeEvent, adminSaveEscalation,
   deleteRecord, clearEventData, exportBackup, copyBackup, unlockAdmin,
+  refreshTimeOptions, addTimeOption, removeTimeOption,
 });
 </script>
 </body>
