@@ -190,18 +190,25 @@ const db = getFirestore(fbApp);
 
 /* ================= CONFIG ================= */
 const ZONES = [
-  {id:'z1', label:'Dahlia／Sakura／Allamanda', point:'集合点：Dahlia Busstop', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Dahlia Busstop')},
-  {id:'z2', label:'Cempaka', point:'集合点：Cempaka Office 前', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Cempaka College')},
-  {id:'z7', label:'BRC／TAZ', point:'集合点：BRC 布告栏', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS BRC TAZ Samarahan')},
-  {id:'z4', label:'Unijaya', point:'集合点：Unijaya Roundabout', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('Unijaya Samarahan roundabout')},
-  {id:'z5', label:"D'Millenia", point:"集合点：D'Millenia 楼下", driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent("D'Millenia Samarahan")},
-  {id:'z11', label:'Kenanga', point:'集合点：Kenanga（详细位置请补充）', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Kenanga Samarahan')},
-  {id:'z12', label:'Academia 门口', point:'集合点：Academia 门口', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Academia Samarahan')},
-  {id:'z13', label:'Seroja', point:'集合点：Seroja（详细位置请补充）', driveMinFromChurch:10, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Seroja Samarahan')},
-  {id:'z3', label:'Rafflesia', point:'集合点：另行安排（请见备注或询问同工）', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('UNIMAS Rafflesia College')},
-  {id:'z8', label:'IPG Gazebo', point:'集合点：IPG Gazebo', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('IPG Samarahan Gazebo')},
-  {id:'z10', label:'Eduvista', point:'集合点：Eduvista 楼下', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('Eduvista Samarahan')},
-  {id:'z9', label:'IMAS-Appartment', point:'集合点：IMAS-Appartment 楼下', driveMinFromChurch:15, mapLink:'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent('IMAS Apartment Samarahan')},
+  {id:'z1', label:'Dahlia／Sakura／Allamanda', point:'集合点：Dahlia Busstop', driveMinFromChurch:10, mapLink:'https://maps.app.goo.gl/s4beaaLNuNw1oTjn8'},
+  {id:'z2', label:'Cempaka', point:'集合点：Cempaka Office 前', driveMinFromChurch:10,
+    mapLink:'https://maps.app.goo.gl/p23tsmDBHVq9u11R9',
+    mapLinkAlt:'https://maps.app.goo.gl/TWFNRLdzeDEeMxom7'},
+  {id:'z7', label:'BRC', point:'集合点：BRC 布告栏', driveMinFromChurch:10, mapLink:'https://maps.app.goo.gl/9C4hf6wEQfCJLApx9'},
+  {id:'z14', label:'TAZ', point:'集合点：BRC 布告栏（与 BRC 共乘）', driveMinFromChurch:10,
+    mapLink:'https://maps.app.goo.gl/9C4hf6wEQfCJLApx9',
+    mapLinkAlt:'https://maps.app.goo.gl/rUPpGJYSC8tMfYCM9'},
+  {id:'z4', label:'Unijaya', point:'集合点：Unijaya Roundabout', driveMinFromChurch:10,
+    mapLink:'https://maps.app.goo.gl/Ve5PVpPd6LyvU9s46?g_st=iw',
+    mapLinkAlt:'https://maps.app.goo.gl/9KR9R5mknLf3uyyN6?g_st=iw'},
+  {id:'z5', label:"D'Millenia", point:"集合点：D'Millenia 楼下", driveMinFromChurch:10, mapLink:'https://maps.app.goo.gl/3cDkSqtUoKsUkNzH6?g_st=iw'},
+  {id:'z11', label:'Kenanga', point:'集合点：Kenanga（详细位置请补充）', driveMinFromChurch:10, mapLink:'https://maps.app.goo.gl/suxLfgWxty9uPACM6'},
+  {id:'z12', label:'Academia 门口', point:'集合点：Academia 门口', driveMinFromChurch:10, mapLink:'https://maps.app.goo.gl/YFz6QYKbLTKt7Fvu5'},
+  {id:'z13', label:'Seroja', point:'集合点：Seroja（详细位置请补充）', driveMinFromChurch:10, mapLink:'https://maps.app.goo.gl/t2ifsQjDLpxMhLtJA'},
+  {id:'z3', label:'Rafflesia', point:'集合点：另行安排（请见备注或询问同工）', driveMinFromChurch:15, mapLink:'https://maps.app.goo.gl/6bqYqvR7LZbMTbJW9?g_st=iw'},
+  {id:'z8', label:'IPG Gazebo', point:'集合点：IPG Gazebo', driveMinFromChurch:15, mapLink:'https://maps.app.goo.gl/P9V9ZLFPUVMrjDrB9?g_st=iw'},
+  {id:'z10', label:'Eduvista', point:'集合点：Eduvista 楼下', driveMinFromChurch:15, mapLink:'https://maps.app.goo.gl/kdCjcjWMq5ycmePz9?g_st=iw'},
+  {id:'z9', label:'IMAS-Appartment', point:'集合点：IMAS-Appartment 楼下', driveMinFromChurch:15, mapLink:'https://maps.app.goo.gl/eBXW5QJhjRHD24ec7?g_st=iw'},
   {id:'z6', label:'其他／特殊安排', point:'请在备注注明详细地点', driveMinFromChurch:10, mapLink:''},
 ];
 // Rough drive-time model: the campus-cluster zones (z1,z2,z7,z4,z5,z11,z12,z13)
@@ -210,7 +217,7 @@ const ZONES = [
 // is unknown, so it's not treated as "nearby" for hop purposes. These are
 // estimates, not real routing — nudge driveMinFromChurch above or the
 // constants below if they're off.
-const NEARBY_CLUSTER = ['z1','z2','z7','z4','z5','z11','z12','z13'];
+const NEARBY_CLUSTER = ['z1','z2','z7','z14','z4','z5','z11','z12','z13'];
 const NEARBY_HOP_MIN = 5;
 const FAR_HOP_MIN = 15;
 function hopMinutes(zoneIdA, zoneIdB){
@@ -225,16 +232,24 @@ const DEFAULT_RETURN_START = '10:30';
 // Cempaka has two actual meetup spots; which one to use depends on what
 // else is on the same trip (told to us by someone who knows the routes).
 function pointFor(zone, otherZoneIdsInTrip){
-  if(zone.id==='z6') return '各自地址（见下方名单）';
+  if(zone.id==='z6') return {text:'各自地址（见下方名单）', mapLink:''};
   if(zone.id==='z2'){
-    if(otherZoneIdsInTrip.includes('z4')) return '集合点：Cempaka Cafe';
-    if(otherZoneIdsInTrip.includes('z1')) return '集合点：Cempaka Office 前';
+    if(otherZoneIdsInTrip.includes('z4')) return {text:'集合点：Cempaka Cafe', mapLink:zone.mapLinkAlt||zone.mapLink};
+    if(otherZoneIdsInTrip.includes('z1')) return {text:'集合点：Cempaka Office 前', mapLink:zone.mapLink};
   }
   if(zone.id==='z4'){
     const pairedWithFarZone = otherZoneIdsInTrip.some(zid => !NEARBY_CLUSTER.includes(zid) && zid!=='z6');
-    return pairedWithFarZone ? '集合点：UJ MF Store（校外车顺路捎带）' : '集合点：Unijaya Roundabout';
+    return pairedWithFarZone
+      ? {text:'集合点：UJ MF Store（校外车顺路捎带）', mapLink:zone.mapLinkAlt||zone.mapLink}
+      : {text:'集合点：Unijaya Roundabout', mapLink:zone.mapLink};
   }
-  return zone.point;
+  if(zone.id==='z14'){
+    const pairedWithBRC = otherZoneIdsInTrip.includes('z7');
+    return pairedWithBRC
+      ? {text:'集合点：BRC 布告栏（与 BRC 共乘）', mapLink:zone.mapLink}
+      : {text:'集合点：TAZ（单独）', mapLink:zone.mapLinkAlt||zone.mapLink};
+  }
+  return {text:zone.point, mapLink:zone.mapLink};
 }
 const ESCALATION_EXTRA_TRIPS = 2;
 // The church's own vans — pre-set so drivers pick a plate instead of typing
@@ -332,91 +347,6 @@ function shouldEscalate(escalationTimeStr){
 }
 
 /* ================= MATCHING ALGORITHM ================= */
-function clusterByTime(list, windowMin){
-  const sorted = [...list].sort((a,b)=>a._t-b._t);
-  const batches=[]; let current=null;
-  sorted.forEach(p=>{
-    if(current===null || p._t-current.startTime>windowMin){ current={startTime:p._t, items:[p]}; batches.push(current); }
-    else current.items.push(p);
-  });
-  return batches;
-}
-
-// Packs each time-batch into as few trips as possible: a single trip can pick
-// up from several zones (a "milk run") as long as one driver's capacity and
-// zone coverage allow it. Always computed fresh from current data — never
-// reuses a previous layout.
-function packBatches(batches, availableDrivers, driverState, relaxed, assignments, unassignedOut, direction){
-  batches.forEach(batch=>{
-    const batchTime = batch.startTime;
-    const byZone = {};
-    batch.items.forEach(p=>{ (byZone[p.zone] = byZone[p.zone]||[]).push(p); });
-    // Sort each zone's queue: people with duty (服事) go first — they need
-    // to arrive early to prepare — only for the going direction. Within the
-    // same duty status, whoever registered LAST gets pulled in first (gets
-    // the earlier trip); registering early is rewarded with a later, more-
-    // sleep pickup once a zone needs more than one trip.
-    Object.values(byZone).forEach(arr=>arr.sort((a,b)=>{
-      if(direction==='going'){
-        const dutyDiff = (b.hasDuty?1:0) - (a.hasDuty?1:0);
-        if(dutyDiff!==0) return dutyDiff;
-      }
-      return (b.updatedAt||0)-(a.updatedAt||0);
-    }));
-    let zoneQueue = ZONES.map(z=>z.id).filter(zid=>byZone[zid]&&byZone[zid].length)
-      .map(zid=>({zoneId:zid, items:byZone[zid]}));
-
-    while(true){
-      zoneQueue = zoneQueue.filter(zq=>zq.items.length>0);
-      if(zoneQueue.length===0) break;
-
-      const capExtra = relaxed ? ESCALATION_EXTRA_TRIPS : 0;
-      const canServeSomething = d => d.zones.includes('any') || zoneQueue.some(zq=>d.zones.includes(zq.zoneId));
-      const candidates = availableDrivers.filter(d=>
-        driverState[d.id].tripsUsed < (d.maxTrips + capExtra) && canServeSomething(d)
-      );
-
-      if(candidates.length===0){
-        zoneQueue.forEach(zq=>zq.items.forEach(p=>unassignedOut.push({...p, zone:zq.zoneId, requestedTime:minToTime(batchTime)})));
-        break;
-      }
-
-      candidates.forEach(d=>{
-        const st=driverState[d.id];
-        d._effTime = st.nextFreeTime===null ? batchTime : Math.max(batchTime, st.nextFreeTime);
-      });
-      candidates.sort((a,b)=>{
-        if(a._effTime!==b._effTime) return a._effTime-b._effTime;
-        return b.capacity-a.capacity;
-      });
-      const driver = candidates[0];
-      const st = driverState[driver.id];
-      const effectiveTime = driver._effTime;
-      const canServeZone = zid => driver.zones.includes('any') || driver.zones.includes(zid);
-
-      let remainingCap = driver.capacity;
-      const stops = [];
-      for(const zq of zoneQueue){
-        if(remainingCap<=0) break;
-        if(!canServeZone(zq.zoneId)) continue;
-        const take = zq.items.splice(0, remainingCap);
-        if(take.length===0) continue;
-        remainingCap -= take.length;
-        stops.push({zoneId:zq.zoneId, passengers: take.map(p=>({id:p.id, name:p.name, phone:p.phone, notes:p.notes, hasDuty:p.hasDuty, otherAddress:p.otherAddress}))});
-      }
-
-      assignments.push({
-        driverId:driver.id, driverName:driver.name, driverPhone:driver.phone, driverType:driver.type,
-        driverPlate:driver.plate, driverCapacity:driver.capacity, tripIndex: st.tripsUsed+1,
-        time: minToTime(effectiveTime), requestedTime: minToTime(batchTime),
-        delayedMin: effectiveTime-batchTime, escalated: relaxed,
-        stops
-      });
-      st.tripsUsed += 1;
-      st.nextFreeTime = effectiveTime + TURNAROUND_MIN;
-    }
-  });
-}
 
 // Generic single-batch multi-stop packer (no time-clustering — used by the
 // no-duty-going and all-return flows, which don't have a per-person
@@ -463,7 +393,7 @@ function packSingleBatch(passengers, availableDrivers, driverState, anchorMin, s
     assignments.push({
       driverId:driver.id, driverName:driver.name, driverPhone:driver.phone, driverType:driver.type,
       driverPlate:driver.plate, driverCapacity:driver.capacity, tripIndex:st.tripsUsed+1,
-      time:effectiveTime, stops
+      time:effectiveTime, stops, escalated:relaxed
     });
     st.tripsUsed += 1;
     st.nextFreeTime = effectiveTime + TURNAROUND_MIN;
@@ -476,16 +406,49 @@ function packSingleBatch(passengers, availableDrivers, driverState, anchorMin, s
 // the target (arrival time minus prep buffer). Whoever registered earliest
 // gets pulled into the simulation's first-filled trip, which — after the
 // shift — becomes the trip closest to the target (most sleep).
-function scheduleNoDutyGoing(passengers, availableDrivers, driverState, targetMin){
+// Shared by BOTH duty and no-duty going groups: nobody's selected time is a
+// literal pickup time — it's the time they need to ARRIVE by. We simulate
+// forward from an arbitrary anchor (continuing the shared driverState's
+// trip-count budget), then shift every computed time so the LAST trip lands
+// exactly on targetMin. Whoever registered earliest gets pulled into the
+// simulation's first-filled trip, which after the shift becomes the trip
+// closest to the target (most sleep / least early).
+// Estimates when a trip would actually reach the destination: its pickup
+// time, plus hop time across its own stops, plus the last stop's drive time
+// to church.
+function tripArrivalEstimate(rawTime, stops){
+  let t = rawTime;
+  for(let i=1;i<stops.length;i++){ t += hopMinutes(stops[i-1].zoneId, stops[i].zoneId); }
+  const lastZone = zoneById(stops[stops.length-1].zoneId);
+  t += (lastZone && lastZone.driveMinFromChurch!=null) ? lastZone.driveMinFromChurch : NEARBY_HOP_MIN;
+  return t;
+}
+function scheduleGoingForTarget(passengers, availableDrivers, driverState, targetMin, escalate){
+  if(passengers.length===0) return {assignments:[], unassigned:[]};
   const sortFn = (a,b)=>(b.updatedAt||0)-(a.updatedAt||0);
-  const {assignments, unassigned} = packSingleBatch(passengers, availableDrivers, driverState, 0, sortFn, false);
+  const localDriverState = {};
+  availableDrivers.forEach(d=>{ localDriverState[d.id] = {tripsUsed: driverState[d.id].tripsUsed, nextFreeTime:null}; });
+
+  let {assignments, unassigned} = packSingleBatch(passengers, availableDrivers, localDriverState, 0, sortFn, false);
+  if(escalate && unassigned.length>0){
+    const more = packSingleBatch(unassigned, availableDrivers, localDriverState, 0, sortFn, true);
+    assignments = [...assignments, ...more.assignments];
+    unassigned = more.unassigned;
+  }
+
   if(assignments.length>0){
-    const maxTime = Math.max(...assignments.map(a=>a.time));
-    const shift = targetMin - maxTime;
+    // Align so the trip with the LATEST estimated arrival hits targetMin
+    // exactly — this is what "arrive by targetMin" actually requires,
+    // accounting for the drive from each trip's own last stop to church.
+    const maxArrival = Math.max(...assignments.map(a=>tripArrivalEstimate(a.time, a.stops)));
+    const shift = targetMin - maxArrival;
     assignments.forEach(a=>{ a.time += shift; });
   }
-  assignments.forEach(a=>{ a.time = minToTime(a.time); a.requestedTime=minToTime(targetMin); a.delayedMin=0; a.escalated=false; });
+  assignments.forEach(a=>{ a.time = minToTime(a.time); a.requestedTime=minToTime(targetMin); a.delayedMin=0; });
   unassigned.forEach(p=>{ p.requestedTime = minToTime(targetMin); });
+
+  // propagate the trip-count budget used back into the shared driverState
+  availableDrivers.forEach(d=>{ driverState[d.id].tripsUsed = localDriverState[d.id].tripsUsed; });
   return {assignments, unassigned};
 }
 
@@ -493,8 +456,9 @@ function scheduleNoDutyGoing(passengers, availableDrivers, driverState, targetMi
 // there. Whoever registered EARLIEST leaves first (trip 1); later
 // registrants land in later trips.
 function scheduleReturn(passengers, availableDrivers, driverState, startMin){
+  const remapped = passengers.map(p=>({...p, zone: p.returnZone||p.zone, otherAddress: p.returnOtherAddress||''}));
   const sortFn = (a,b)=>(a.updatedAt||0)-(b.updatedAt||0);
-  const {assignments, unassigned} = packSingleBatch(passengers, availableDrivers, driverState, startMin, sortFn, false);
+  const {assignments, unassigned} = packSingleBatch(remapped, availableDrivers, driverState, startMin, sortFn, false);
   assignments.forEach(a=>{ a.time = minToTime(a.time); a.requestedTime=minToTime(startMin); a.delayedMin=0; a.escalated=false; });
   unassigned.forEach(p=>{ p.requestedTime = minToTime(startMin); });
   return {assignments, unassigned};
@@ -514,39 +478,39 @@ function matchDirection(passengersAll, driversAll, direction, escalate, eventSet
     return {assignments, unassigned};
   }
 
-  // going: duty passengers use the existing time-select + clustering flow;
-  // no-duty passengers get auto-scheduled backward from the target time.
+  // going: everyone is scheduled backward from an ARRIVAL target — duty
+  // passengers pick which target (from admin-set options), no-duty
+  // passengers share one computed target (arrival time minus prep buffer).
   const availableDrivers = driversAll.filter(d=>d.goingAvailable);
-  const dutyPassengers = passengersAll
-    .filter(p=>p.goingNeeded && p.hasDuty && p.goingTime)
-    .map(p=>({...p, _t:timeToMin(p.goingTime)}));
-  const noDutyPassengers = passengersAll.filter(p=>p.goingNeeded && !p.hasDuty);
+  const goingPassengers = passengersAll.filter(p=>p.goingNeeded);
+  const dutyGroups = {};
+  const noDutyList = [];
+  goingPassengers.forEach(p=>{
+    if(p.hasDuty && p.goingTime){
+      (dutyGroups[p.goingTime] = dutyGroups[p.goingTime]||[]).push(p);
+    }else{
+      noDutyList.push(p);
+    }
+  });
 
-  const assignments = [];
-  let unassigned = [];
-  const batches = clusterByTime(dutyPassengers, BATCH_WINDOW_MIN);
-  packBatches(batches, availableDrivers, driverState, false, assignments, unassigned, direction);
-  if(escalate && unassigned.length>0){
-    const escList = unassigned.map(p=>({...p, _t:timeToMin(p.requestedTime)}));
-    const escBatches = clusterByTime(escList, BATCH_WINDOW_MIN);
-    const stillUnassigned = [];
-    packBatches(escBatches, availableDrivers, driverState, true, assignments, stillUnassigned, direction);
-    unassigned = stillUnassigned;
-  }
+  const allAssignments = [];
+  const allUnassigned = [];
 
-  // No-duty passengers share the same drivers' remaining trip *count* budget
-  // (tripsUsed carries over) but not their exact minute-by-minute
-  // availability — duty and no-duty windows are assumed not to physically
-  // clash, since duty people leave earlier by design.
-  const noDutyDriverState = {};
-  driversAll.forEach(d=>{ noDutyDriverState[d.id] = {tripsUsed: driverState[d.id].tripsUsed, nextFreeTime:null}; });
+  // process duty target-groups earliest-first, then the no-duty group last
+  // (no-duty's target is usually the closest to service start)
+  Object.keys(dutyGroups).sort().forEach(t=>{
+    const {assignments, unassigned} = scheduleGoingForTarget(dutyGroups[t], availableDrivers, driverState, timeToMin(t), escalate);
+    allAssignments.push(...assignments);
+    allUnassigned.push(...unassigned);
+  });
+
   const arrivalMin = timeToMin(es.arrivalTime) ?? timeToMin(DEFAULT_ARRIVAL_TIME);
   const prepBuffer = es.prepBufferMin!=null ? es.prepBufferMin : DEFAULT_PREP_BUFFER_MIN;
-  const targetMin = arrivalMin - prepBuffer;
-  const noDutyResult = scheduleNoDutyGoing(noDutyPassengers, availableDrivers, noDutyDriverState, targetMin);
+  const noDutyTarget = arrivalMin - prepBuffer;
+  const noDutyResult = scheduleGoingForTarget(noDutyList, availableDrivers, driverState, noDutyTarget, escalate);
+  allAssignments.push(...noDutyResult.assignments);
+  allUnassigned.push(...noDutyResult.unassigned);
 
-  const allAssignments = [...assignments, ...noDutyResult.assignments];
-  const allUnassigned = [...unassigned, ...noDutyResult.unassigned];
   allAssignments.forEach(a=>{ a.direction = 'going'; });
   return {assignments: allAssignments, unassigned: allUnassigned};
 }
@@ -664,25 +628,33 @@ function renderPassengerForm(){
       <input type="tel" id="p_phone" required placeholder="012-3456789">
       <div class="hint">帮朋友登记时，请用朋友本人的号码，不要用自己的号码重复填，不然资料会互相盖掉</div>
 
-      <label>宿舍集合区</label>
-      <select id="p_zone" onchange="showZonePoint('p_zone_point',this.value); toggleOtherAddress(this.value);" required>
-        <option value="">请选择</option>${zoneOpts}
-      </select>
-      <div class="zone-point" id="p_zone_point"></div>
-      <div id="p_otherAddressWrap" style="display:none;">
-        <label>详细地址</label>
-        <input type="text" id="p_otherAddress" placeholder="请填写完整地址，方便司机找到你">
-      </div>
-
       <div class="check-row"><input type="checkbox" id="p_hasDuty" onchange="toggleDutyUI(this.checked)"><span>这次有服事（需要提早到，可以自选时间）</span></div>
 
-      <div class="check-row"><input type="checkbox" id="p_goingNeeded" checked onchange="toggleField('p_goingTimeWrap',this.checked)"><span id="p_goingLabel">需要去程（宿舍 → ${esc(initialDest)}）</span></div>
-      <div id="p_goingTimeWrap">
+      <div class="check-row"><input type="checkbox" id="p_goingNeeded" checked onchange="toggleField('p_goingBlock',this.checked)"><span id="p_goingLabel">需要去程（宿舍 → ${esc(initialDest)}）</span></div>
+      <div id="p_goingBlock">
+        <label>去程集合区</label>
+        <select id="p_zone" onchange="showZonePoint('p_zone_point',this.value); toggleOtherAddress('p_otherAddressWrap',this.value);" required>
+          <option value="">请选择</option>${zoneOpts}
+        </select>
+        <div class="zone-point" id="p_zone_point"></div>
+        <div id="p_otherAddressWrap" style="display:none;">
+          <label>详细地址</label>
+          <input type="text" id="p_otherAddress" placeholder="请填写完整地址，方便司机找到你">
+        </div>
         <div id="p_goingTimeInner">${goingTimeSectionHtml(false, initialSettings)}</div>
       </div>
 
-      <div class="check-row"><input type="checkbox" id="p_returnNeeded" checked onchange="toggleField('p_returnTimeWrap',this.checked)"><span id="p_returnLabel">需要回程（${esc(initialDest)} → 宿舍）</span></div>
-      <div id="p_returnTimeWrap">
+      <div class="check-row"><input type="checkbox" id="p_returnNeeded" checked onchange="toggleField('p_returnBlock',this.checked)"><span id="p_returnLabel">需要回程（${esc(initialDest)} → 宿舍）</span></div>
+      <div id="p_returnBlock">
+        <label>回程送达区（可以跟去程不一样）</label>
+        <select id="p_returnZone" onchange="showZonePoint('p_returnZone_point',this.value); toggleOtherAddress('p_returnOtherAddressWrap',this.value);" required>
+          <option value="">请选择</option>${zoneOpts}
+        </select>
+        <div class="zone-point" id="p_returnZone_point"></div>
+        <div id="p_returnOtherAddressWrap" style="display:none;">
+          <label>详细地址</label>
+          <input type="text" id="p_returnOtherAddress" placeholder="请填写完整地址，方便司机找到你">
+        </div>
         <div id="p_returnRefText">${returnRefTextHtml(initialSettings)}</div>
       </div>
 
@@ -708,8 +680,8 @@ function showZonePoint(id, zoneId){
     el.innerHTML = esc(z.point) + (z.mapLink ? ` · <a href="${z.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;">📍在地图打开</a>` : '');
   } else { el.style.display='none'; }
 }
-function toggleOtherAddress(zoneId){
-  document.getElementById('p_otherAddressWrap').style.display = zoneId==='z6' ? 'block' : 'none';
+function toggleOtherAddress(wrapId, zoneId){
+  document.getElementById(wrapId).style.display = zoneId==='z6' ? 'block' : 'none';
 }
 function getSelectedEvent(prefix){
   if(STATE.activeEvents.length<=1) return STATE.activeEvents[0] || '';
@@ -721,27 +693,32 @@ async function submitPassenger(ev){
   const event_ = getSelectedEvent('p');
   const name = document.getElementById('p_name').value.trim();
   const phone = document.getElementById('p_phone').value.trim();
-  const zone = document.getElementById('p_zone').value;
-  const otherAddress = document.getElementById('p_otherAddress').value.trim();
   const hasDuty = document.getElementById('p_hasDuty').checked;
   const goingNeeded = document.getElementById('p_goingNeeded').checked;
+  const zone = document.getElementById('p_zone').value;
+  const otherAddress = document.getElementById('p_otherAddress').value.trim();
   const goingTimeEl = document.getElementById('p_goingTime');
   const goingTime = (hasDuty && goingTimeEl) ? goingTimeEl.value : '';
   const returnNeeded = document.getElementById('p_returnNeeded').checked;
+  const returnZone = document.getElementById('p_returnZone').value;
+  const returnOtherAddress = document.getElementById('p_returnOtherAddress').value.trim();
   const notes = document.getElementById('p_notes').value.trim();
   const msg = document.getElementById('p_msg');
 
   if(!event_){ msg.innerHTML = '<div class="banner banner-alert">请选择活动</div>'; return false; }
-  if(!zone){ msg.innerHTML = '<div class="banner banner-alert">请选择宿舍集合区</div>'; return false; }
-  if(zone==='z6' && !otherAddress){ msg.innerHTML = '<div class="banner banner-alert">请填写详细地址</div>'; return false; }
   if(!goingNeeded && !returnNeeded){ msg.innerHTML = '<div class="banner banner-alert">去程／回程至少要选一个</div>'; return false; }
+  if(goingNeeded && !zone){ msg.innerHTML = '<div class="banner banner-alert">请选择去程集合区</div>'; return false; }
+  if(goingNeeded && zone==='z6' && !otherAddress){ msg.innerHTML = '<div class="banner banner-alert">请填写去程详细地址</div>'; return false; }
   if(goingNeeded && hasDuty && !goingTime){ msg.innerHTML = '<div class="banner banner-alert">请选择去程时间（如果没有选项，请联系同工设定）</div>'; return false; }
+  if(returnNeeded && !returnZone){ msg.innerHTML = '<div class="banner banner-alert">请选择回程送达区</div>'; return false; }
+  if(returnNeeded && returnZone==='z6' && !returnOtherAddress){ msg.innerHTML = '<div class="banner banner-alert">请填写回程详细地址</div>'; return false; }
 
   const existed = STATE.passengers.some(p=>p.event===event_ && p.phone===phone);
   const record = {
-    event: event_, name, phone, zone, otherAddress: zone==='z6'?otherAddress:'', hasDuty,
-    goingNeeded, goingTime: (goingNeeded && hasDuty) ? goingTime : '',
-    returnNeeded,
+    event: event_, name, phone, hasDuty,
+    goingNeeded, zone: goingNeeded?zone:'', otherAddress: (goingNeeded && zone==='z6')?otherAddress:'',
+    goingTime: (goingNeeded && hasDuty) ? goingTime : '',
+    returnNeeded, returnZone: returnNeeded?returnZone:'', returnOtherAddress: (returnNeeded && returnZone==='z6')?returnOtherAddress:'',
     notes, updatedAt: Date.now()
   };
   const docId = safeId(event_)+'__'+safeId(phone);
@@ -958,15 +935,15 @@ function renderDirectionBlock(title, result, dest){
     const stopsHtml = timedStops.map((s,idx)=>{
       const zone = zoneById(s.zoneId);
       const otherZoneIds = timedStops.filter((_,i)=>i!==idx).map(st=>st.zoneId);
-      const pointText = zone ? pointFor(zone, otherZoneIds) : '';
-      const mapTag = zone && zone.mapLink ? ` · <a href="${zone.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;text-decoration:none;">📍地图</a>` : '';
+      const pt = zone ? pointFor(zone, otherZoneIds) : {text:'', mapLink:''};
+      const mapTag = pt.mapLink ? ` · <a href="${pt.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;text-decoration:none;">📍地图</a>` : '';
       return `
       <div style="margin-top:${idx===0?'0':'14px'};padding-top:${idx===0?'0':'14px'};${idx>0?'border-top:1px dashed var(--border);':''}">
         <div style="display:flex;align-items:center;gap:8px;">
           <span class="stop-badge">${idx+1}</span>
           <div style="flex:1;">
             <div class="trip-zone">${esc(zone?zone.label:s.zoneId)}（${s.passengers.length}人）</div>
-            <div class="trip-point"><span class="stop-time">${s.estTime}</span> 预计到达 · ${esc(pointText)}${mapTag}</div>
+            <div class="trip-point"><span class="stop-time">${s.estTime}</span> 预计到达 · ${esc(pt.text)}${mapTag}</div>
           </div>
         </div>
         <div class="pax-list">
@@ -1133,8 +1110,11 @@ function renderAdmin(){
     ${passengers.length===0 ? '<div class="empty">没有资料</div>' : passengers.map(p=>`
       <div class="list-row">
         <div>
-          <div>${esc(p.name)} · ${esc(zoneById(p.zone)?.label||p.zone)}${p.otherAddress?' · 📍'+esc(p.otherAddress):''}</div>
-          <div class="meta">${p.goingNeeded?'去 '+esc(p.goingTime):''} ${p.returnNeeded?'　回 '+esc(p.returnTime):''}</div>
+          <div>${esc(p.name)}${p.hasDuty?' <span class="type-badge">服事</span>':''}</div>
+          <div class="meta">
+            ${p.goingNeeded?'去：'+esc(zoneById(p.zone)?.label||p.zone)+(p.otherAddress?' 📍'+esc(p.otherAddress):'')+(p.hasDuty&&p.goingTime?'（'+esc(p.goingTime)+'）':''):''}
+            ${p.returnNeeded?'　回：'+esc(zoneById(p.returnZone)?.label||p.returnZone)+(p.returnOtherAddress?' 📍'+esc(p.returnOtherAddress):''):''}
+          </div>
         </div>
         <button class="btn btn-ghost" onclick="deleteRecord('passenger','${p.id}')">删除</button>
       </div>`).join('')}
