@@ -219,6 +219,15 @@ function hopMinutes(zoneIdA, zoneIdB){
 }
 const TURNAROUND_MIN = 30;
 const BATCH_WINDOW_MIN = 15;
+// Cempaka has two actual meetup spots; which one to use depends on what
+// else is on the same trip (told to us by someone who knows the routes).
+function pointFor(zone, otherZoneIdsInTrip){
+  if(zone.id==='z2'){
+    if(otherZoneIdsInTrip.includes('z4')) return '集合点：Cempaka Cafe';
+    if(otherZoneIdsInTrip.includes('z1')) return '集合点：Cempaka Office 前';
+  }
+  return zone.point;
+}
 const ESCALATION_EXTRA_TRIPS = 2;
 /* 管理分页的密码 —— 只有知道这个密码的人才能用「管理」功能。
    建议换成你自己的密码，换完记得也要重新上传到 GitHub。 */
@@ -731,6 +740,8 @@ function renderDirectionBlock(title, result){
 
     const stopsHtml = timedStops.map((s,idx)=>{
       const zone = zoneById(s.zoneId);
+      const otherZoneIds = timedStops.filter((_,i)=>i!==idx).map(st=>st.zoneId);
+      const pointText = zone ? pointFor(zone, otherZoneIds) : '';
       const mapTag = zone && zone.mapLink ? ` · <a href="${zone.mapLink}" target="_blank" style="color:var(--teal-dark);font-weight:700;text-decoration:none;">📍地图</a>` : '';
       return `
       <div style="margin-top:${idx===0?'0':'14px'};padding-top:${idx===0?'0':'14px'};${idx>0?'border-top:1px dashed var(--border);':''}">
@@ -738,7 +749,7 @@ function renderDirectionBlock(title, result){
           <span class="stop-badge">${idx+1}</span>
           <div style="flex:1;">
             <div class="trip-zone">${esc(zone?zone.label:s.zoneId)}（${s.passengers.length}人）</div>
-            <div class="trip-point"><span class="stop-time">${s.estTime}</span> 预计到达 · ${esc(zone?zone.point:'')}${mapTag}</div>
+            <div class="trip-point"><span class="stop-time">${s.estTime}</span> 预计到达 · ${esc(pointText)}${mapTag}</div>
           </div>
         </div>
         <div class="pax-list">
