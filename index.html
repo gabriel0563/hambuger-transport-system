@@ -265,6 +265,34 @@ const CHURCH_VANS = [
    建议换成你自己的密码，换完记得也要重新上传到 GitHub。 */
 const ADMIN_PIN = "0816";
 
+/* ================= 实时定位 / 预计到达时间（可选功能） =================
+   开启方式：
+   1. 去 Google Cloud Console 开通 Routes API，拿到一组 API key，填进
+      GOOGLE_MAPS_API_KEY。
+   2. 在 Google Maps 上长按（手机）或右键（电脑）每个集合点和教会本身，
+      会跳出一组经纬度数字，直接复制填进下面 ZONE_COORDS 和
+      CHURCH_LOCATION（格式：{lat:1.4927, lng:110.3900}）。
+   这两样都没填之前，系统会自动跳过定位这部分功能，不影响其他功能，
+   也不会报错——可以先上线用其他功能，之后再回来补这里。 */
+const GOOGLE_MAPS_API_KEY = "AIzaSyDES2k7N5THgq19B3WzE7jLIIp2eA-2f-k";
+const ZONE_COORDS = {
+  z1: {lat:1.4720063, lng:110.4285414},   // Dahlia／Sakura／Allamanda
+  z2: {lat:1.4657219, lng:110.4319839},   // Cempaka（主要点：Office）
+  z7: {lat:1.4672036, lng:110.4360297},   // BRC
+  z14: {lat:1.4656995, lng:110.4354367},  // TAZ
+  z4: {lat:1.4604790, lng:110.4325536},   // Unijaya（主要点：Roundabout）
+  z5: {lat:1.4600624, lng:110.4279302},   // D'Millenia
+  z11: {lat:1.4580655, lng:110.4546508},  // Kenanga
+  z12: {lat:1.4712546, lng:110.4210904},  // Academia
+  z13: {lat:1.4594235, lng:110.4491707},  // Seroja
+  z3: {lat:1.4467192, lng:110.4551263},   // Rafflesia
+  z8: {lat:1.4463805, lng:110.4637488},   // IPG Gazebo
+  z10: {lat:1.4499348, lng:110.4627257},  // Eduvista
+  z9: {lat:1.4589422, lng:110.4457166},   // IMAS-Appartment
+  z6: null,                                // 其他／特殊安排：没有固定地点，留空
+};
+const CHURCH_LOCATION = {lat:1.462341, lng:110.417236};
+
 /* ================= STATE ================= */
 let STATE = {
   tab: 'passenger',
@@ -277,6 +305,10 @@ let STATE = {
   scheduleEvent: null,
   adminEvent: null,
   adminUnlocked: localStorage.getItem('churchRideAdminUnlocked')==='1',
+  driverLocations: {},
+  etaCache: {},
+  etaInFlight: new Set(),
+  sharingDriverId: localStorage.getItem('churchRideSharingDriverId') || null,
 };
 
 /* ================= FIRESTORE HELPERS ================= */
@@ -298,6 +330,14 @@ function attachListeners(){
     STATE.lastFetch = new Date();
     if(STATE.tab==='schedule' || STATE.tab==='admin') renderTab();
   }, (err)=>{ console.error('drivers listener error', err); });
+
+  onSnapshot(collection(db,'driverLocations'), (snap)=>{
+    const map = {};
+    snap.docs.forEach(d=>{ map[d.id] = d.data(); });
+    STATE.driverLocations = map;
+    STATE.loaded = true;
+    if(STATE.tab==='schedule') renderTab();
+  }, (err)=>{ console.error('driverLocations listener error', err); });
 
   onSnapshot(doc(db,'settings','app'), (snap)=>{
     const data = snap.exists() ? snap.data() : {};
@@ -344,6 +384,136 @@ function shouldEscalate(escalationTimeStr){
   const now = new Date();
   const nowMin = now.getHours()*60+now.getMinutes();
   return nowMin >= thresh;
+}
+
+/* ================= 实时定位 / ETA ================= */
+
+// Calls Google's Routes API to get a live drive-time estimate between two
+// coordinates. Returns null (silently) if the API key isn't set yet, or if
+// the call fails for any reason — callers fall back to the static estimate.
+async function fetchETAMinutes(originLat, originLng, destLat, destLng){
+  if(!GOOGLE_MAPS_API_KEY) return null;
+  try{
+    const res = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': GOOGLE_MAPS_API_KEY,
+        'X-Goog-FieldMask': 'routes.duration',
+      },
+      body: JSON.stringify({
+        origin: {location:{latLng:{latitude:originLat, longitude:originLng}}},
+        destination: {location:{latLng:{latitude:destLat, longitude:destLng}}},
+        travelMode: 'DRIVE',
+        routingPreference: 'TRAFFIC_AWARE',
+      }),
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    const durStr = data.routes && data.routes[0] && data.routes[0].duration;
+    if(!durStr) return null;
+    const durSec = parseInt(String(durStr).replace('s',''), 10);
+    return Number.isFinite(durSec) ? Math.max(1, Math.round(durSec/60)) : null;
+  }catch(e){
+    console.error('ETA 查询失败', e);
+    return null;
+  }
+}
+
+// Looks up whether a driver currently has a fresh shared location, and (if
+// so) kicks off / reuses a cached ETA to destCoord. Rendering is synchronous,
+// so on a cache miss this fires the fetch in the background and triggers a
+// re-render once it resolves — the caller just shows "计算中" in the
+// meantime. Returns null if there's nothing live to show (no API key, no
+// destination coordinates yet, driver isn't sharing, or their last update
+// is too old to trust).
+function getLiveETADisplay(driverId, destCoord){
+  if(!GOOGLE_MAPS_API_KEY || !destCoord) return null;
+  const loc = STATE.driverLocations[driverId];
+  if(!loc || !loc.sharing || loc.lat==null) return null;
+  const ageMs = Date.now() - (loc.updatedAt || 0);
+  if(ageMs > 10*60*1000) return null; // no update in 10min — treat as no longer sharing
+  const ageMinLabel = Math.max(0, Math.round(ageMs/60000));
+  const cacheKey = driverId+'_'+destCoord.lat+'_'+destCoord.lng;
+  const cached = STATE.etaCache[cacheKey];
+  const stale = !cached || (Date.now()-cached.fetchedAt) > 45000;
+  if(stale && !STATE.etaInFlight.has(cacheKey)){
+    STATE.etaInFlight.add(cacheKey);
+    fetchETAMinutes(loc.lat, loc.lng, destCoord.lat, destCoord.lng).then(etaMin=>{
+      STATE.etaCache[cacheKey] = {etaMin, fetchedAt: Date.now()};
+      STATE.etaInFlight.delete(cacheKey);
+      if(STATE.tab==='schedule') renderTab();
+    });
+  }
+  return {ageMinLabel, etaMin: cached ? cached.etaMin : null};
+}
+
+// Driver-side: start/stop broadcasting this device's live location under
+// their own driver doc id. Runs entirely in the browser tab that's open —
+// closing or backgrounding the tab stops the updates (getLiveETADisplay's
+// 10-minute staleness check handles that gracefully on the viewing side).
+let locationWatchId = null;
+function startSharingLocation(driverId, eventName){
+  if(!navigator.geolocation){ alert('这个浏览器不支持定位功能'); return; }
+  locationWatchId = navigator.geolocation.watchPosition(async (pos)=>{
+    try{
+      await setDoc(doc(db,'driverLocations',driverId), {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        updatedAt: Date.now(),
+        sharing: true,
+        event: eventName,
+      }, {merge:true});
+    }catch(e){ console.error('写入位置失败', e); }
+  }, (err)=>{
+    console.error('定位失败', err);
+    alert('无法取得你的位置，请检查手机的定位权限设定后再试一次');
+  }, {enableHighAccuracy:true, maximumAge:15000, timeout:20000});
+}
+function stopSharingLocation(driverId){
+  if(locationWatchId!==null){ navigator.geolocation.clearWatch(locationWatchId); locationWatchId=null; }
+  if(driverId){
+    setDoc(doc(db,'driverLocations',driverId), {sharing:false}, {merge:true}).catch(e=>console.error(e));
+  }
+}
+function driverLocSelectOptions(eventName){
+  const list = STATE.drivers.filter(d=>d.event===eventName && !d.hidden);
+  if(list.length===0) return `<option value="">（这个活动还没有司机登记）</option>`;
+  return list.map(d=>`<option value="${esc(d.id)}">${esc(d.name)}（${esc((d.plate||'未填').toUpperCase())}）</option>`).join('');
+}
+function updateSharingStatus(){
+  const drvSel = document.getElementById('loc_driver');
+  const btn = document.getElementById('loc_btn');
+  const statusEl = document.getElementById('loc_status');
+  if(!drvSel || !btn || !statusEl) return;
+  const isSharingThis = STATE.sharingDriverId && STATE.sharingDriverId===drvSel.value;
+  btn.textContent = isSharingThis ? '停止分享位置' : '开始分享位置';
+  statusEl.textContent = isSharingThis ? '📍 正在分享中，请让这个页面开着、屏幕别锁' : '';
+}
+function wireDriverLocEvents(){
+  const evSel = document.getElementById('loc_event');
+  const drvSel = document.getElementById('loc_driver');
+  if(!evSel || !drvSel) return;
+  const refreshDriverOptions = ()=>{ drvSel.innerHTML = driverLocSelectOptions(evSel.value); updateSharingStatus(); };
+  evSel.onchange = refreshDriverOptions;
+  drvSel.onchange = updateSharingStatus;
+  refreshDriverOptions();
+}
+function toggleSharing(){
+  const drvSel = document.getElementById('loc_driver');
+  const evSel = document.getElementById('loc_event');
+  if(!drvSel || !drvSel.value){ alert('请先选择你是哪一位司机'); return; }
+  if(STATE.sharingDriverId===drvSel.value){
+    stopSharingLocation(STATE.sharingDriverId);
+    STATE.sharingDriverId = null;
+    localStorage.removeItem('churchRideSharingDriverId');
+  }else{
+    if(STATE.sharingDriverId) stopSharingLocation(STATE.sharingDriverId);
+    startSharingLocation(drvSel.value, evSel.value);
+    STATE.sharingDriverId = drvSel.value;
+    localStorage.setItem('churchRideSharingDriverId', drvSel.value);
+  }
+  updateSharingStatus();
 }
 
 /* ================= MATCHING ALGORITHM ================= */
@@ -564,6 +734,7 @@ function renderTab(){
   if(STATE.tab==='admin') c.innerHTML = renderAdmin();
   if(STATE.tab==='schedule') wireScheduleEvents();
   if(STATE.tab==='admin') wireAdminEvents();
+  if(STATE.tab==='driver') wireDriverLocEvents();
 }
 
 /* ---- Passenger form ---- */
@@ -794,6 +965,17 @@ function renderDriverForm(){
       <button class="btn" type="submit">提交登记</button>
       <div id="d_msg"></div>
     </form>
+  </div>
+
+  <div class="card">
+    <h2><span class="badge">📍</span> 已经登记了？开始分享你的位置</h2>
+    <div class="hint">开着这个页面，系统会不定时读取你的位置，让总表那边的乘客和同工看到你大概几分钟后会到。切换到别的App或关掉页面，分享就会停止。</div>
+    <label>活动／日期</label>
+    <select id="loc_event">${STATE.activeEvents.map(e=>`<option value="${esc(e)}">${esc(e)}</option>`).join('')}</select>
+    <label>你是哪一位司机？</label>
+    <select id="loc_driver"></select>
+    <div id="loc_status" class="hint" style="margin-top:10px;"></div>
+    <button class="btn btn-secondary" id="loc_btn" type="button" onclick="toggleSharing()">开始分享位置</button>
   </div>`;
 }
 function toggleZoneChips(anyChecked){
@@ -967,6 +1149,20 @@ function renderDirectionBlock(title, result, dest){
       etaLine = `<div class="eta-line">🏁 预计 ${minToTime(arriveMin)} 抵达${esc(dest)}</div>`;
     }
 
+    // Live GPS ETA (only shows once GOOGLE_MAPS_API_KEY + coordinates are
+    // filled in, and only while this driver has an active, recent location
+    // share) — falls back to nothing, leaving the static estimate above as
+    // the only ETA shown.
+    const finalDestCoord = a.direction==='going'
+      ? CHURCH_LOCATION
+      : (timedStops.length ? ZONE_COORDS[timedStops[timedStops.length-1].zoneId] : null);
+    const live = finalDestCoord ? getLiveETADisplay(a.driverId, finalDestCoord) : null;
+    let liveLine = '';
+    if(live){
+      const etaText = live.etaMin!=null ? `预计 ${live.etaMin} 分钟后到` : '正在计算预计时间…';
+      liveLine = `<div class="eta-line" style="background:var(--teal-pale);color:var(--teal-dark);font-weight:700;border-top:none;border-radius:14px;padding:8px 12px;">📍 司机位置 ${live.ageMinLabel} 分钟前更新 · ${etaText}</div>`;
+    }
+
     html += `
     <div class="trip-card">
       <div class="trip-top">
@@ -980,6 +1176,7 @@ function renderDirectionBlock(title, result, dest){
         <a class="trip-driver-call" href="${telHref(a.driverPhone)}">${esc(a.driverPhone)}</a>
       </div>
       ${stopsHtml}
+      ${liveLine}
       ${etaLine}
     </div>`;
   });
@@ -1327,6 +1524,7 @@ Object.assign(window, {
   refreshTimeOptions, addTimeOption, removeTimeOption,
   toggleDriverType, onVanPlateChange, toggleOtherAddress, toggleDutyUI,
   adminSaveGoingSchedule, adminSaveReturnStart,
+  toggleSharing,
 });
 </script>
 </body>
